@@ -1,0 +1,600 @@
+@page "/citas"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject CitaService CitaService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Citas - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a> para ver las citas</h3>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>🏥 Citas Médicas</h2>
+            <div>
+                <button class="btn btn-primary" @onclick="NavigateToCreate">
+                    ➕ Nueva Cita
+                </button>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+                <p class="mt-2">Cargando citas...</p>
+            </div>
+        }
+        else if (errorMessage != null)
+        {
+            <div class="alert alert-danger" role="alert">
+                @errorMessage
+            </div>
+        }
+        else if (citas == null || !citas.Any())
+        {
+            <div class="text-center py-5">
+                <div class="empty-state">
+                    <h1 style="font-size: 5rem;">🏥</h1>
+                    <h3>No tienes citas agendadas</h3>
+                    <p class="text-muted">¡Agenda tu primera cita médica!</p>
+                    <button class="btn btn-success btn-lg mt-3" @onclick="NavigateToCreate">
+                        ➕ Agendar Mi Primera Cita
+                    </button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- Filtros y Búsqueda -->
+            <div class="card mb-4 shadow-sm">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Buscar por mascota o motivo de la cita:</label>
+                            <input type="text" class="form-control" placeholder="Nombre de la mascota..." @bind="searchTerm" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Filtrar por estado:</label>
+                            <div class="btn-group w-100" role="group">
+                                <button type="button" class="btn btn-sm @(filtroEstado == null ? "btn-dark" : "btn-outline-dark")" @onclick="@(() => filtroEstado = null)">
+                                    Todos (@citasOrdenadas.Count())
+                                </button>
+                                <button type="button" class="btn btn-sm @(filtroEstado == "confirmada" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => filtroEstado = "confirmada")">
+                                    Confirmadas (@citasConfirmadas.Count())
+                                </button>
+                                <button type="button" class="btn btn-sm @(filtroEstado == "pendiente" ? "btn-warning" : "btn-outline-warning")" @onclick="@(() => filtroEstado = "pendiente")">
+                                    Pendientes (@citasPendientes.Count())
+                                </button>
+                                <button type="button" class="btn btn-sm @(filtroEstado == "completada" ? "btn-success" : "btn-outline-success")" @onclick="@(() => filtroEstado = "completada")">
+                                    Completadas (@citasCompletadas.Count())
+                                </button>
+                                <button type="button" class="btn btn-sm @(filtroEstado == "cancelada" ? "btn-danger" : "btn-outline-danger")" @onclick="@(() => filtroEstado = "cancelada")">
+                                    Canceladas (@citasCanceladas.Count())
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Citas Agrupadas -->
+            @if (!citasFiltradas.Any())
+            {
+                <div class="alert alert-info text-center">
+                    <h5>No se encontraron citas</h5>
+                    <p class="mb-0">Intenta cambiar los filtros o el término de búsqueda</p>
+                </div>
+            }
+            else
+            {
+                <!-- Confirmadas -->
+                @if (citasConfirmadasFiltradas.Any())
+                {
+                    <div class="mb-4">
+                        <div class="section-header bg-primary text-white p-3 rounded-top">
+                            <h5 class="mb-0">
+                                <i class="bi bi-check-circle-fill"></i> Citas Confirmadas 
+                                <span class="badge bg-white text-primary ms-2">@citasConfirmadasFiltradas.Count()</span>
+                            </h5>
+                            <small>Próximas citas agendadas y confirmadas</small>
+                        </div>
+                        <div class="row g-3 p-3 border border-top-0 rounded-bottom bg-light">
+                            @foreach (var cita in citasConfirmadasFiltradas)
+                            {
+                                @RenderCitaCard(cita, "border-primary")
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- Pendientes -->
+                @if (citasPendientesFiltradas.Any())
+                {
+                    <div class="mb-4">
+                        <div class="section-header bg-warning text-dark p-3 rounded-top">
+                            <h5 class="mb-0">
+                                <i class="bi bi-clock-fill"></i> Citas Pendientes 
+                                <span class="badge bg-dark ms-2">@citasPendientesFiltradas.Count()</span>
+                            </h5>
+                            <small>Esperando confirmación</small>
+                        </div>
+                        <div class="row g-3 p-3 border border-top-0 rounded-bottom bg-light">
+                            @foreach (var cita in citasPendientesFiltradas)
+                            {
+                                @RenderCitaCard(cita, "border-warning")
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- Completadas -->
+                @if (citasCompletadasFiltradas.Any())
+                {
+                    <div class="mb-4">
+                        <div class="section-header bg-success text-white p-3 rounded-top">
+                            <h5 class="mb-0">
+                                <i class="bi bi-check-all"></i> Citas Completadas 
+                                <span class="badge bg-white text-success ms-2">@citasCompletadasFiltradas.Count()</span>
+                            </h5>
+                            <small>Historial de consultas finalizadas</small>
+                        </div>
+                        <div class="row g-3 p-3 border border-top-0 rounded-bottom bg-light">
+                            @foreach (var cita in citasCompletadasFiltradas)
+                            {
+                                @RenderCitaCard(cita, "border-success")
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- Canceladas -->
+                @if (citasCanceladasFiltradas.Any())
+                {
+                    <div class="mb-4">
+                        <div class="section-header bg-danger text-white p-3 rounded-top">
+                            <h5 class="mb-0">
+                                <i class="bi bi-x-circle-fill"></i> Citas Canceladas 
+                                <span class="badge bg-white text-danger ms-2">@citasCanceladasFiltradas.Count()</span>
+                            </h5>
+                            <small>Citas anuladas o eliminadas</small>
+                        </div>
+                        <div class="row g-3 p-3 border border-top-0 rounded-bottom bg-light">
+                            @foreach (var cita in citasCanceladasFiltradas)
+                            {
+                                @RenderCitaCard(cita, "border-danger")
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        }
+    </div>
+}
+
+@code {
+    private List<Cita>? citas;
+    private PaginatedResponse<Cita>? paginatedResponse;
+    private int currentPage = 1;
+    private bool isLoading;
+    private string? errorMessage;
+    private string? filtroEstado = null;
+    private string searchTerm = "";
+
+    // Propiedades computadas para ordenamiento inteligente
+    private IEnumerable<Cita> citasOrdenadas
+    {
+        get
+        {
+            if (citas == null) return Enumerable.Empty<Cita>();
+            
+            return citas
+                .OrderBy(c => GetPrioridad(c.Estado, c.IsDeleted))
+                .ThenBy(c => c.Estado == "completada" || c.Estado == "cancelada" || c.IsDeleted ? -c.Fecha.Ticks : c.Fecha.Ticks);
+        }
+    }
+
+    private IEnumerable<Cita> citasFiltradas
+    {
+        get
+        {
+            var resultado = citasOrdenadas;
+            
+            // Filtrar por estado si hay filtro activo
+            if (!string.IsNullOrEmpty(filtroEstado))
+            {
+                resultado = resultado.Where(c => 
+                    (filtroEstado == "cancelada" && (c.Estado == "cancelada" || c.IsDeleted)) ||
+                    (filtroEstado != "cancelada" && c.Estado == filtroEstado && !c.IsDeleted)
+                );
+            }
+            
+            // Filtrar por término de búsqueda
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                var termino = searchTerm.ToLower();
+                resultado = resultado.Where(c => 
+                    (c.NombreMascota ?? "").ToLower().Contains(termino) ||
+                    (c.Motivo ?? "").ToLower().Contains(termino) ||
+                    (c.VeterinarioNombre ?? "").ToLower().Contains(termino)
+                );
+            }
+            
+            return resultado;
+        }
+    }
+
+    // Grupos por estado
+    private IEnumerable<Cita> citasConfirmadas => citasOrdenadas.Where(c => c.Estado == "confirmada" && !c.IsDeleted).OrderBy(c => c.Fecha);
+    private IEnumerable<Cita> citasPendientes => citasOrdenadas.Where(c => c.Estado == "pendiente" && !c.IsDeleted).OrderBy(c => c.Fecha);
+    private IEnumerable<Cita> citasCompletadas => citasOrdenadas.Where(c => c.Estado == "completada" && !c.IsDeleted).OrderByDescending(c => c.Fecha);
+    private IEnumerable<Cita> citasCanceladas => citasOrdenadas.Where(c => c.Estado == "cancelada" || c.IsDeleted).OrderByDescending(c => c.Fecha);
+
+    // Grupos filtrados
+    private IEnumerable<Cita> citasConfirmadasFiltradas => citasFiltradas.Where(c => c.Estado == "confirmada" && !c.IsDeleted);
+    private IEnumerable<Cita> citasPendientesFiltradas => citasFiltradas.Where(c => c.Estado == "pendiente" && !c.IsDeleted);
+    private IEnumerable<Cita> citasCompletadasFiltradas => citasFiltradas.Where(c => c.Estado == "completada" && !c.IsDeleted);
+    private IEnumerable<Cita> citasCanceladasFiltradas => citasFiltradas.Where(c => c.Estado == "cancelada" || c.IsDeleted);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            await LoadCitas();
+        }
+    }
+
+    private async Task LoadCitas(int page = 1)
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            currentPage = page;
+            // Cargar TODAS las citas para filtrado correcto (máximo del backend: 500)
+            paginatedResponse = await CitaService.GetCitasAsync(
+                page: 1,
+                pageSize: 500  // Máximo permitido por el backend
+            );
+
+            citas = paginatedResponse?.Items ?? new List<Cita>();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // Token expirado - redirigir al login
+            Console.WriteLine($"Sesión expirada: {ex.Message}");
+            await AuthService.LogoutAsync();
+            Navigation.NavigateTo("/login", true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar citas: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ViewCita(string id)
+    {
+        Navigation.NavigateTo($"/citas/{id}");
+    }
+
+    private void EditCita(string id)
+    {
+        Navigation.NavigateTo($"/citas/{id}/editar");
+    }
+
+    private async Task CancelCita(string id)
+    {
+        if (!CanCancelCita(citas?.FirstOrDefault(c => c.IdCita == id)))
+        {
+            errorMessage = "No tienes permisos para cancelar esta cita.";
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "¿Estás seguro de que deseas cancelar esta cita?"))
+        {
+            return;
+        }
+
+        try
+        {
+            if (await CitaService.CancelCitaAsync(id))
+            {
+                await LoadCitas(currentPage);
+            }
+            else
+            {
+                errorMessage = "Error al cancelar la cita.";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // Token expirado o sin permisos
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cancelar: " + ex.Message;
+        }
+    }
+
+    private bool CanEditCita(Cita? cita)
+    {
+        if (cita == null) return false;
+        
+        var role = AuthService.CurrentUser?.Role;
+        
+        // No se pueden editar citas canceladas o completadas
+        if (cita.Estado == "cancelada" || cita.Estado == "completada")
+            return false;
+        
+        // Admin puede editar todas
+        if (role == "admin")
+            return true;
+        
+        // Veterinarios solo pueden editar citas asignadas a ellos
+        if (role == "veterinario")
+            return cita.Veterinario == AuthService.CurrentUser?.Username;
+        
+        // Clientes pueden editar sus propias citas pendientes
+        if (role == "cliente" && cita.Estado == "pendiente")
+            return true;
+        
+        return false;
+    }
+
+    private bool CanCancelCita(Cita? cita)
+    {
+        if (cita == null) return false;
+        
+        // No se pueden cancelar citas ya canceladas o completadas
+        if (cita.Estado == "cancelada" || cita.Estado == "completada")
+            return false;
+        
+        var role = AuthService.CurrentUser?.Role;
+        
+        // Solo admin puede cancelar cualquier cita
+        if (role == "admin")
+            return true;
+        
+        // Veterinarios NO pueden cancelar citas
+        if (role == "veterinario")
+            return false;
+        
+        // Clientes pueden cancelar sus propias citas
+        if (role == "cliente")
+            return true;
+        
+        return false;
+    }
+
+    private void NavigateToCreate()
+    {
+        Navigation.NavigateTo("/citas/crear");
+    }
+
+    private string GetEstadoBadgeColor(string estado)
+    {
+        return estado switch
+        {
+            "pendiente" => "warning",
+            "confirmada" => "primary",
+            "cancelada" => "danger",
+            "completada" => "success",
+            _ => "secondary"
+        };
+    }
+
+    private int GetPrioridad(string estado, bool isDeleted)
+    {
+        // Prioridad: menor número = mayor prioridad
+        if (isDeleted || estado == "cancelada") return 4; // Última prioridad
+        return estado switch
+        {
+            "confirmada" => 1,  // Mayor prioridad
+            "pendiente" => 2,
+            "completada" => 3,
+            _ => 5
+        };
+    }
+
+    private string GetDiasRestantes(DateTime fecha)
+    {
+        var dias = (fecha.Date - DateTime.Now.Date).Days;
+        if (dias < 0) return "Pasada";
+        if (dias == 0) return "¡Hoy!";
+        if (dias == 1) return "Mañana";
+        return $"En {dias} días";
+    }
+
+    private RenderFragment RenderCitaCard(Cita cita, string borderClass) => builder =>
+    {
+        var isCancelled = cita.IsDeleted || cita.Estado == "cancelada";
+        var diasRestantes = GetDiasRestantes(cita.Fecha);
+        var esProxima = !isCancelled && (cita.Estado == "confirmada" || cita.Estado == "pendiente") && (cita.Fecha.Date - DateTime.Now.Date).Days <= 3;
+
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "col-md-6 col-lg-4");
+        
+        builder.OpenElement(2, "div");
+        builder.AddAttribute(3, "class", $"card {borderClass} {(isCancelled ? "opacity-75" : "")} {(esProxima ? "shadow-lg" : "shadow-sm")} h-100 position-relative");
+        builder.AddAttribute(4, "style", "border-left: 4px solid;");
+        
+        builder.OpenElement(5, "div");
+        builder.AddAttribute(6, "class", $"card-body {(esProxima ? "pb-5" : "")}");
+        
+        // Badge de estado/cancelado
+        if (isCancelled)
+        {
+            builder.OpenElement(7, "span");
+            builder.AddAttribute(8, "class", "badge bg-danger position-absolute top-0 end-0 m-2");
+            builder.AddContent(9, "Cancelada");
+            builder.CloseElement();
+        }
+        else if (esProxima)
+        {
+            builder.OpenElement(10, "span");
+            builder.AddAttribute(11, "class", "badge bg-warning text-dark position-absolute bottom-0 end-0 m-2");
+            builder.AddContent(12, $"{diasRestantes}");
+            builder.CloseElement();
+        }
+        
+        // Header con mascota y estado
+        builder.OpenElement(13, "div");
+        builder.AddAttribute(14, "class", "d-flex justify-content-between align-items-start mb-2");
+        
+        builder.OpenElement(15, "h5");
+        builder.AddAttribute(16, "class", $"card-title {(isCancelled ? "text-muted text-decoration-line-through" : "")}");
+        builder.AddContent(17, $"{cita.NombreMascota}");
+        builder.CloseElement();
+        
+        if (!isCancelled)
+        {
+            builder.OpenElement(18, "span");
+            builder.AddAttribute(19, "class", $"badge bg-{GetEstadoBadgeColor(cita.Estado)}");
+            builder.AddContent(20, cita.Estado);
+            builder.CloseElement();
+        }
+        
+        builder.CloseElement(); // div header
+        
+        // Información de la cita
+        builder.OpenElement(21, "p");
+        builder.AddAttribute(22, "class", "card-text small");
+        
+        builder.OpenElement(23, "strong");
+        builder.AddContent(24, "Fecha:");
+        builder.CloseElement();
+        builder.AddContent(25, $" {cita.Fecha:dd/MM/yyyy HH:mm}");
+        if (!isCancelled && (cita.Estado == "confirmada" || cita.Estado == "pendiente"))
+        {
+            builder.OpenElement(26, "span");
+            builder.AddAttribute(27, "class", "text-muted ms-1");
+            builder.AddContent(28, $"({diasRestantes})");
+            builder.CloseElement();
+        }
+        builder.AddMarkupContent(29, "<br />");
+        
+        builder.OpenElement(30, "strong");
+        builder.AddContent(31, "Motivo:");
+        builder.CloseElement();
+        builder.AddContent(32, $" {cita.Motivo}");
+        builder.AddMarkupContent(33, "<br />");
+        
+        if (!string.IsNullOrEmpty(cita.VeterinarioNombre))
+        {
+            builder.OpenElement(34, "strong");
+            builder.AddContent(35, "Veterinario:");
+            builder.CloseElement();
+            builder.AddContent(36, $" {cita.VeterinarioNombre}");
+            builder.AddMarkupContent(37, "<br />");
+        }
+        
+        if (!string.IsNullOrEmpty(cita.Diagnostico))
+        {
+            builder.OpenElement(38, "strong");
+            builder.AddContent(39, "Diagnóstico:");
+            builder.CloseElement();
+            builder.AddContent(40, $" {cita.Diagnostico}");
+            builder.AddMarkupContent(41, "<br />");
+        }
+        
+        builder.CloseElement(); // p
+        
+        // Botones de acción
+        builder.OpenElement(42, "div");
+        builder.AddAttribute(43, "class", "btn-group mt-2");
+        builder.AddAttribute(44, "role", "group");
+        
+        builder.OpenElement(45, "button");
+        builder.AddAttribute(46, "class", "btn btn-sm btn-outline-primary");
+        builder.AddAttribute(47, "onclick", EventCallback.Factory.Create(this, () => ViewCita(cita.IdCita)));
+        builder.AddContent(48, "Ver");
+        builder.CloseElement();
+        
+        if (!isCancelled)
+        {
+            if (CanEditCita(cita))
+            {
+                builder.OpenElement(49, "button");
+                builder.AddAttribute(50, "class", "btn btn-sm btn-outline-warning");
+                builder.AddAttribute(51, "onclick", EventCallback.Factory.Create(this, () => EditCita(cita.IdCita)));
+                builder.AddContent(52, "Editar");
+                builder.CloseElement();
+            }
+            
+            if (CanCancelCita(cita))
+            {
+                builder.OpenElement(53, "button");
+                builder.AddAttribute(54, "class", "btn btn-sm btn-outline-danger");
+                builder.AddAttribute(55, "onclick", EventCallback.Factory.Create(this, () => CancelCita(cita.IdCita)));
+                builder.AddContent(56, "Cancelar");
+                builder.CloseElement();
+            }
+        }
+        
+        builder.CloseElement(); // div btn-group
+        
+        builder.CloseElement(); // div card-body
+        builder.CloseElement(); // div card
+        builder.CloseElement(); // div col
+    };
+}
+
+<style>
+    .section-header {
+        transition: all 0.3s ease;
+    }
+
+    .section-header:hover {
+        transform: translateX(5px);
+    }
+
+    .card {
+        transition: all 0.2s ease-in-out;
+    }
+
+    .card:hover {
+        transform: translateY(-3px);
+    }
+
+    .btn-group .btn {
+        transition: all 0.2s ease;
+    }
+
+    .shadow-lg {
+        box-shadow: 0 1rem 3rem rgba(255, 193, 7, 0.3) !important;
+        animation: pulse-shadow 2s infinite;
+    }
+
+    @@keyframes pulse-shadow {
+        0%, 100% {
+            box-shadow: 0 1rem 3rem rgba(255, 193, 7, 0.3);
+        }
+        50% {
+            box-shadow: 0 1rem 3rem rgba(255, 193, 7, 0.5);
+        }
+    }
+</style>

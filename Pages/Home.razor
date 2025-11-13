@@ -1,0 +1,373 @@
+@page "/"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@using System.Globalization
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject EstadisticaService EstadisticaService
+
+<PageTitle>Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="welcome-container">
+        <div class="welcome-card text-center">
+            <h1 class="display-4 mb-4">🐾 Bienvenido a VetCare</h1>
+            <p class="lead mb-4">Sistema integral de gestión veterinaria</p>
+            <div class="features mb-5">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="feature-box">
+                            <h3>🏥</h3>
+                            <h5>Gestión de Citas</h5>
+                            <p>Agenda y administra citas médicas</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="feature-box">
+                            <h3>💉</h3>
+                            <h5>Control de Vacunas</h5>
+                            <p>Registro completo de vacunación</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="feature-box">
+                            <h3>📋</h3>
+                            <h5>Historial Médico</h5>
+                            <p>Seguimiento detallado de mascotas</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="cta-buttons">
+                <a href="/login" class="btn btn-primary btn-lg me-3">Iniciar Sesión</a>
+                <a href="/register" class="btn btn-outline-primary btn-lg">Crear Cuenta</a>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        <div class="hero-header mb-4">
+            <div class="hero-content">
+                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <div class="hero-text">
+                        <h1 class="hero-title mb-2">
+                            ¡Hola, <span class="highlight">@AuthService.CurrentUser?.Username</span>!
+                        </h1>
+                        <p class="hero-subtitle mb-0">
+                            @GetGreeting() | @DateTime.Now.ToString("dddd, dd MMMM yyyy", new CultureInfo("es-ES"))
+                        </p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-glass-danger mb-2" @onclick="HandleLogout">
+                            Cerrar sesión
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-wave"></div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+                <p class="mt-3">Cargando estadísticas...</p>
+            </div>
+        }
+        else
+        {
+            <div class="row g-4 mb-4">
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-card stat-card-primary" @onclick="@(() => Navigation.NavigateTo("/mascotas"))">
+                        <div class="stat-icon">
+                            <div class="icon-circle">🐾</div>
+                        </div>
+                        <div class="stat-content">
+                            <h3 class="stat-number">@totalMascotas</h3>
+                            <p class="stat-label">@GetMascotasLabel()</p>
+                            <div class="stat-progress">
+                                <div class="progress-bar bg-primary" style="width: 100%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-card stat-card-success" @onclick="@(() => Navigation.NavigateTo("/citas"))">
+                        <div class="stat-icon">
+                            <div class="icon-circle">📅</div>
+                        </div>
+                        <div class="stat-content">
+                            <h3 class="stat-number">@citasPendientes</h3>
+                            <p class="stat-label">@GetCitasLabel()</p>
+                            <div class="stat-badge badge-warning">⏳ Próximas</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-card stat-card-info" @onclick="@(() => Navigation.NavigateTo("/vacunas"))">
+                        <div class="stat-icon">
+                            <div class="icon-circle">💉</div>
+                        </div>
+                        <div class="stat-content">
+                            <h3 class="stat-number">@totalVacunas</h3>
+                            <p class="stat-label">@GetVacunasLabel()</p>
+                            <div class="stat-progress">
+                                <div class="progress-bar bg-info" style="width: 85%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-card stat-card-warning" @onclick="@(() => Navigation.NavigateTo("/facturas"))">
+                        <div class="stat-icon">
+                            <div class="icon-circle">💰</div>
+                        </div>
+                        <div class="stat-content">
+                            <h3 class="stat-number">@facturasPendientes</h3>
+                            <p class="stat-label">@GetFacturasLabel()</p>
+                            <div class="stat-badge badge-danger">🚨 Requiere atención</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                    <div class="quick-action-card">
+                        <div class="card-header-custom">
+                            <h5 class="mb-0">Acciones Rápidas</h5>
+                        </div>
+                        <div class="quick-actions-grid">
+                            <button class="quick-action-btn" @onclick="@(() => Navigation.NavigateTo("/mascotas/crear"))">
+                                <div class="action-icon">➕</div>
+                                <span>Registrar Mascota</span>
+                            </button>
+                            <button class="quick-action-btn" @onclick="@(() => Navigation.NavigateTo("/citas/crear"))">
+                                <div class="action-icon">📅</div>
+                                <span>Agendar Cita</span>
+                            </button>
+                            @if (AuthService.CurrentUser?.Role != "cliente")
+                            {
+                                <button class="quick-action-btn" @onclick="@(() => Navigation.NavigateTo("/vacunas/crear"))">
+                                    <div class="action-icon">💉</div>
+                                    <span>Registrar Vacuna</span>
+                                </button>
+                                <button class="quick-action-btn" @onclick="@(() => Navigation.NavigateTo("/facturas/crear"))">
+                                    <div class="action-icon">💳</div>
+                                    <span>Crear Factura</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="info-card">
+                        <div class="card-header-custom">
+                            <h5 class="mb-0">Estado del Sistema</h5>
+                        </div>
+                        <div class="system-status">
+                            <div class="status-item">
+                                <div class="status-dot status-online"></div>
+                                <div class="status-info">
+                                    <strong>Sistema</strong>
+                                    <span class="text-success">Operativo</span>
+                                </div>
+                            </div>
+                            <div class="status-item">
+                                <div class="status-dot status-online"></div>
+                                <div class="status-info">
+                                    <strong>Base de Datos</strong>
+                                    <span class="text-success">Conectada</span>
+                                </div>
+                            </div>
+                            <div class="status-item">
+                                <div class="status-dot status-online"></div>
+                                <div class="status-info">
+                                    <strong>Sesión Activa</strong>
+                                    <span class="text-success">@AuthService.CurrentUser?.Username</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-12">
+                    <div class="navigation-card">
+                        <h5 class="nav-card-title">Navegación Rápida</h5>
+                        <div class="nav-grid">
+                            <a href="/mascotas" class="nav-item nav-item-primary">
+                                <div class="nav-icon">🐾</div>
+                                <div class="nav-content">
+                                    <strong>Mascotas</strong>
+                                    <small>Gestionar mascotas registradas</small>
+                                </div>
+                                <div class="nav-arrow">→</div>
+                            </a>
+                            <a href="/citas" class="nav-item nav-item-success">
+                                <div class="nav-icon">📅</div>
+                                <div class="nav-content">
+                                    <strong>Citas</strong>
+                                    <small>Ver y administrar citas</small>
+                                </div>
+                                <div class="nav-arrow">→</div>
+                            </a>
+                            <a href="/vacunas" class="nav-item nav-item-info">
+                                <div class="nav-icon">💉</div>
+                                <div class="nav-content">
+                                    <strong>Vacunas</strong>
+                                    <small>Control de vacunación</small>
+                                </div>
+                                <div class="nav-arrow">→</div>
+                            </a>
+                            <a href="/facturas" class="nav-item nav-item-warning">
+                                <div class="nav-icon">💰</div>
+                                <div class="nav-content">
+                                    <strong>Facturas</strong>
+                                    <small>Gestión de pagos</small>
+                                </div>
+                                <div class="nav-arrow">→</div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private int totalMascotas = 0;
+    private int citasPendientes = 0;
+    private int totalVacunas = 0;
+    private int facturasPendientes = 0;
+    private string? userRole;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            userRole = AuthService.CurrentUser?.Role;
+            await LoadEstadisticas();
+        }
+    }
+
+    private async Task LoadEstadisticas()
+    {
+        isLoading = true;
+
+        try
+        {
+            var response = await EstadisticaService.GetEstadisticasDashboardAsync();
+            
+            if (response?.Success == true)
+            {
+                // Mapear datos según el rol
+                if (response.Role == "cliente")
+                {
+                    var stats = response.AsCliente();
+                    if (stats != null)
+                    {
+                        totalMascotas = stats.MisMascotas;
+                        citasPendientes = stats.CitasPendientes;
+                        totalVacunas = stats.VacunasAplicadas;
+                        facturasPendientes = stats.FacturasPendientes;
+                    }
+                }
+                else if (response.Role == "veterinario")
+                {
+                    var stats = response.AsVeterinario();
+                    if (stats != null)
+                    {
+                        totalMascotas = stats.MisMascotas;
+                        citasPendientes = stats.CitasAsignadas;
+                        totalVacunas = stats.VacunasAplicadas;
+                        facturasPendientes = stats.FacturasEmitidas;
+                    }
+                }
+                else if (response.Role == "admin")
+                {
+                    var stats = response.AsAdmin();
+                    if (stats != null)
+                    {
+                        totalMascotas = stats.TotalMascotas;
+                        citasPendientes = stats.CitasPendientes;
+                        totalVacunas = stats.VacunasMes;
+                        facturasPendientes = stats.FacturasPendientes;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando estadísticas: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetGreeting()
+    {
+        var hour = DateTime.Now.Hour;
+        if (hour < 12) return "Buenos días ☀️";
+        if (hour < 18) return "Buenas tardes ☁️";
+        return "Buenas noches 🌙";
+    }
+
+    private string GetMascotasLabel()
+    {
+        return userRole switch
+        {
+            "admin" => "Total de Mascotas",
+            "veterinario" => "Mis Mascotas",
+            _ => "Mis Mascotas"
+        };
+    }
+
+    private string GetCitasLabel()
+    {
+        return userRole switch
+        {
+            "admin" => "Citas Pendientes",
+            "veterinario" => "Citas Asignadas",
+            _ => "Citas Pendientes"
+        };
+    }
+
+    private string GetVacunasLabel()
+    {
+        return userRole switch
+        {
+            "admin" => "Vacunas del Mes",
+            "veterinario" => "Vacunas Aplicadas",
+            _ => "Vacunas Aplicadas"
+        };
+    }
+
+    private string GetFacturasLabel()
+    {
+        return userRole switch
+        {
+            "admin" => "Facturas Pendientes",
+            "veterinario" => "Facturas Emitidas",
+            _ => "Facturas Pendientes"
+        };
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login");
+    }
+}

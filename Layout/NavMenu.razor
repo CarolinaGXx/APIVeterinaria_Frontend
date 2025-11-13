@@ -1,0 +1,180 @@
+@using VeterinariaApp.Services
+@inject AuthService AuthService
+@implements IDisposable
+
+<div class="top-row ps-3 navbar navbar-dark @(isMenuExpanded ? "" : "collapsed")">
+    <div class="container-fluid">
+        @if (isMenuExpanded)
+        {
+            <a class="navbar-brand" href="">Veterinaria Easy</a>
+        }
+        <button title="@(isMenuExpanded ? "Colapsar menú" : "Expandir menú")" 
+                class="btn-toggle-menu" 
+                @onclick="ToggleSidebarExpand"
+                @onclick:stopPropagation="true">
+            @if (isMenuExpanded)
+            {
+                <span>◀</span>
+            }
+            else
+            {
+                <span>▶</span>
+            }
+        </button>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable @(isMenuExpanded ? "" : "menu-collapsed")">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All" title="Inicio">
+                <span class="menu-icon">🏠</span>
+                @if (isMenuExpanded)
+                {
+                    <span class="menu-text">Inicio</span>
+                }
+            </NavLink>
+        </div>
+
+        @if (AuthService.IsAuthenticated)
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="mascotas" title="Mascotas">
+                    <span class="menu-icon">🐶</span>
+                    @if (isMenuExpanded)
+                    {
+                        <span class="menu-text">Mascotas</span>
+                    }
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="citas" title="Citas">
+                    <span class="menu-icon">📅</span>
+                    @if (isMenuExpanded)
+                    {
+                        <span class="menu-text">Citas</span>
+                    }
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="vacunas" title="Vacunas">
+                    <span class="menu-icon">💉</span>
+                    @if (isMenuExpanded)
+                    {
+                        <span class="menu-text">Vacunas</span>
+                    }
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="facturas" title="Facturas">
+                    <span class="menu-icon">💰</span>
+                    @if (isMenuExpanded)
+                    {
+                        <span class="menu-text">Facturas</span>
+                    }
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="recetas" title="Recetas">
+                    <span class="menu-icon">📋</span>
+                    @if (isMenuExpanded)
+                    {
+                        <span class="menu-text">Recetas</span>
+                    }
+                </NavLink>
+            </div>
+
+            <hr class="my-2 menu-divider" />
+            
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="perfil" title="Mi Perfil">
+                    <span class="menu-icon">👤</span>
+                    @if (isMenuExpanded)
+                    {
+                        <span class="menu-text">Mi Perfil</span>
+                    }
+                </NavLink>
+            </div>
+
+            @if (AuthService.CurrentUser?.Role == "admin" || AuthService.CurrentUser?.Role == "veterinario")
+            {
+                <hr class="my-2 menu-divider" />
+                @if (isMenuExpanded)
+                {
+                    <div class="nav-item px-3">
+                        <div class="section-title">BÚSQUEDA</div>
+                    </div>
+                }
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="mascotas/buscar" title="Buscar Mascotas">
+                        <span class="menu-icon">🔍</span>
+                        @if (isMenuExpanded)
+                        {
+                            <span class="menu-text">Buscar Mascotas</span>
+                        }
+                    </NavLink>
+                </div>
+            }
+
+            @if (AuthService.CurrentUser?.Role == "admin")
+            {
+                @if (isMenuExpanded)
+                {
+                    <div class="nav-item px-3">
+                        <div class="section-title">ADMINISTRACIÓN</div>
+                    </div>
+                }
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="usuarios" title="Usuarios">
+                        <span class="menu-icon">👥</span>
+                        @if (isMenuExpanded)
+                        {
+                            <span class="menu-text">Usuarios</span>
+                        }
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="usuarios/crear" title="Crear Usuario">
+                        <span class="menu-icon">➕</span>
+                        @if (isMenuExpanded)
+                        {
+                            <span class="menu-text">Crear Usuario</span>
+                        }
+                    </NavLink>
+                </div>
+            }
+        }
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+    private bool isMenuExpanded = true; // Estado para expandir/colapsar el sidebar
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    protected override void OnInitialized()
+    {
+        // Suscribirse a cambios de autenticación
+        AuthService.OnAuthStateChanged += StateHasChanged;
+    }
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    private void ToggleSidebarExpand()
+    {
+        isMenuExpanded = !isMenuExpanded;
+    }
+
+    public void Dispose()
+    {
+        // Desuscribirse al destruir el componente
+        AuthService.OnAuthStateChanged -= StateHasChanged;
+    }
+}

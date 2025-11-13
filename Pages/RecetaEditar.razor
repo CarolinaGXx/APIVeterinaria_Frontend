@@ -1,0 +1,300 @@
+@page "/recetas/{Id}/editar"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject RecetaService RecetaService
+@inject NavigationManager Navigation
+
+<PageTitle>Editar Receta - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a></h3>
+    </div>
+}
+else if (isLoadingReceta)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+        <p class="mt-3">Cargando receta...</p>
+    </div>
+}
+else if (recetaOriginal == null)
+{
+    <div class="alert alert-danger">
+        Receta no encontrada
+    </div>
+}
+else if (!CanEditReceta())
+{
+    <div class="container">
+        <div class="alert alert-warning mt-5">
+            <h4>No puedes editar esta receta</h4>
+            <p class="mb-0">Solo puedes editar tus propias recetas o ser administrador.</p>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-primary mt-3" @onclick="GoBack">← Volver a Detalle</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h4 class="mb-0">Editar Receta Médica</h4>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @errorMessage
+                            </div>
+                        }
+
+                        <EditForm Model="@recetaUpdate" OnValidSubmit="HandleSubmit">
+                            <!-- Información de la Cita (Solo lectura) -->
+                            <div class="alert alert-info mb-3">
+                                <strong>Información de la Cita (No editable):</strong><br />
+                                <strong>Mascota:</strong> @recetaOriginal.MascotaNombre<br />
+                                <strong>Propietario:</strong> @recetaOriginal.PropietarioNombre<br />
+                                <strong>Fecha Emisión:</strong> @recetaOriginal.FechaEmision.ToString("dd/MM/yyyy HH:mm")
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Indicaciones Generales</label>
+                                <InputTextArea @bind-Value="recetaUpdate.Indicaciones" class="form-control" rows="3" 
+                                               placeholder="Indicaciones generales para el tratamiento..." />
+                                <small class="text-muted">Instrucciones generales sobre el tratamiento</small>
+                            </div>
+
+                            <!-- Líneas de Medicamentos -->
+                            <div class="card border-warning mb-3">
+                                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">Medicamentos Prescritos</h5>
+                                    <button type="button" class="btn btn-sm btn-success" @onclick="AgregarLinea">
+                                        ➕ Agregar Medicamento
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    @if (lineas == null || !lineas.Any())
+                                    {
+                                        <div class="alert alert-info mb-0">
+                                            <p class="mb-0">No hay medicamentos agregados. Haz clic en "Agregar Medicamento" para comenzar.</p>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        @for (int i = 0; i < lineas.Count; i++)
+                                        {
+                                            var index = i;
+                                            var linea = lineas[index];
+                                            
+                                            <div class="card mb-3 @(index % 2 == 0 ? "bg-light" : "")">
+                                                <div class="card-body">
+                                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <h6 class="mb-0">Medicamento #@(index + 1)</h6>
+                                                        <button type="button" class="btn btn-sm btn-danger" @onclick="() => EliminarLinea(index)">
+                                                            Eliminar
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    <div class="row">
+                                                        <div class="col-md-6 mb-2">
+                                                            <label class="form-label">Medicamento *</label>
+                                                            <input type="text" class="form-control" 
+                                                                   @bind="linea.Medicamento" 
+                                                                   placeholder="Nombre del medicamento" />
+                                                        </div>
+                                                        <div class="col-md-6 mb-2">
+                                                            <label class="form-label">Dosis</label>
+                                                            <input type="text" class="form-control" 
+                                                                   @bind="linea.Dosis" 
+                                                                   placeholder="Ej: 500mg, 1 comprimido" />
+                                                        </div>
+                                                        <div class="col-md-6 mb-2">
+                                                            <label class="form-label">Frecuencia</label>
+                                                            <input type="text" class="form-control" 
+                                                                   @bind="linea.Frecuencia" 
+                                                                   placeholder="Ej: Cada 8 horas, 2 veces al día" />
+                                                        </div>
+                                                        <div class="col-md-6 mb-2">
+                                                            <label class="form-label">Duración</label>
+                                                            <input type="text" class="form-control" 
+                                                                   @bind="linea.Duracion" 
+                                                                   placeholder="Ej: 7 días, 2 semanas" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-warning btn-lg" disabled="@isLoading">
+                                    @if (isLoading)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                    }
+                                    Guardar Cambios
+                                </button>
+                                <button type="button" class="btn btn-secondary" @onclick="Cancel">
+                                    Cancelar
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private Receta? recetaOriginal;
+    private RecetaUpdate recetaUpdate = new();
+    private List<RecetaLinea> lineas = new();
+    
+    private string? errorMessage;
+    private bool isLoading;
+    private bool isLoadingReceta = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadReceta();
+    }
+
+    private async Task LoadReceta()
+    {
+        isLoadingReceta = true;
+        errorMessage = null;
+
+        try
+        {
+            recetaOriginal = await RecetaService.GetRecetaAsync(Id);
+
+            if (recetaOriginal != null)
+            {
+                // Cargar datos actuales en el formulario de edición
+                recetaUpdate.Indicaciones = recetaOriginal.Indicaciones;
+                
+                // Cargar líneas existentes
+                if (recetaOriginal.Lineas != null && recetaOriginal.Lineas.Any())
+                {
+                    lineas = new List<RecetaLinea>(recetaOriginal.Lineas);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar la receta: " + ex.Message;
+        }
+        finally
+        {
+            isLoadingReceta = false;
+        }
+    }
+
+    private void AgregarLinea()
+    {
+        lineas.Add(new RecetaLinea());
+    }
+
+    private void EliminarLinea(int index)
+    {
+        if (index >= 0 && index < lineas.Count)
+        {
+            lineas.RemoveAt(index);
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            // Validar que haya al menos un medicamento
+            if (lineas == null || !lineas.Any())
+            {
+                errorMessage = "Debes tener al menos un medicamento";
+                return;
+            }
+
+            // Validar que todos los medicamentos tengan nombre
+            foreach (var linea in lineas)
+            {
+                if (string.IsNullOrWhiteSpace(linea.Medicamento))
+                {
+                    errorMessage = "Todos los medicamentos deben tener un nombre";
+                    return;
+                }
+            }
+
+            // Asignar líneas a la actualización
+            recetaUpdate.Lineas = lineas;
+
+            var result = await RecetaService.UpdateRecetaAsync(Id, recetaUpdate);
+
+            if (result != null)
+            {
+                Navigation.NavigateTo($"/recetas/{Id}");
+            }
+            else
+            {
+                errorMessage = "Error al actualizar la receta";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool CanEditReceta()
+    {
+        if (recetaOriginal == null) return false;
+        
+        var role = AuthService.CurrentUser?.Role;
+        var username = AuthService.CurrentUser?.Username;
+        
+        // Admin puede editar cualquier receta
+        if (role == "admin")
+            return true;
+        
+        // Veterinario solo puede editar sus propias recetas
+        if (role == "veterinario" && recetaOriginal.Veterinario == username)
+            return true;
+        
+        return false;
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo($"/recetas/{Id}");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo($"/recetas/{Id}");
+    }
+}

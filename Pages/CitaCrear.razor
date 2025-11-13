@@ -1,0 +1,251 @@
+@page "/citas/crear"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject CitaService CitaService
+@inject MascotaService MascotaService
+@inject UsuarioService UsuarioService
+@inject NavigationManager Navigation
+
+<PageTitle>Nueva Cita - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a></h3>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h4 class="mb-0">Agendar Nueva Cita</h4>
+                    </div>
+                    <div class="card-body">
+                        @if (isLoadingMascotas || isLoadingVeterinarios)
+                        {
+                            <div class="text-center py-3">
+                                <div class="spinner-border text-primary"></div>
+                                <p>Cargando información...</p>
+                            </div>
+                        }
+                        else if (mascotas == null || !mascotas.Any())
+                        {
+                            <div class="alert alert-warning">
+                                <strong>No tienes mascotas registradas</strong>
+                                <p class="mb-0">Primero debes <a href="/mascotas/crear">registrar una mascota</a></p>
+                            </div>
+                        }
+                        else if (veterinarios == null || !veterinarios.Any())
+                        {
+                            <div class="alert alert-danger">
+                                <strong>No hay veterinarios disponibles</strong>
+                                <p class="mb-0">Contacta al administrador del sistema.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="alert alert-danger" role="alert">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            <EditForm Model="@cita" OnValidSubmit="HandleSubmit">
+                                <div class="mb-3">
+                                    <label class="form-label">Mascota *</label>
+                                    <InputSelect @bind-Value="cita.IdMascota" class="form-select">
+                                        <option value="">Selecciona una mascota...</option>
+                                        @foreach (var mascota in mascotas)
+                                        {
+                                            <option value="@mascota.IdMascota">@mascota.Nombre (@mascota.Tipo - @mascota.Raza)</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Fecha y Hora *</label>
+                                    <InputDate @bind-Value="fechaCita" Type="InputDateType.DateTimeLocal" class="form-control" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Motivo de la Consulta *</label>
+                                    <InputTextArea @bind-Value="cita.Motivo" class="form-control" rows="4" 
+                                                   placeholder="Describe el motivo de la cita..." />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Veterinario *</label>
+                                    <InputSelect @bind-Value="cita.Veterinario" class="form-select">
+                                        <option value="">Selecciona un veterinario...</option>
+                                        @foreach (var vet in veterinarios)
+                                        {
+                                            <option value="@vet.Username">
+                                                @vet.Nombre @(!string.IsNullOrEmpty(vet.Telefono) ? $"- {vet.Telefono}" : "")
+                                            </option>
+                                        }
+                                    </InputSelect>
+                                    <small class="text-muted">Selecciona el veterinario que atenderá la consulta</small>
+                                </div>
+
+                                <div class="d-flex justify-content-between">
+                                    <button type="button" class="btn btn-secondary" @onclick="Cancel">
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" class="btn btn-success" disabled="@isLoading">
+                                        @if (isLoading)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                            <span>Agendando...</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Agendar Cita</span>
+                                        }
+                                    </button>
+                                </div>
+                            </EditForm>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private CitaCreate cita = new();
+    private List<Mascota>? mascotas;
+    private List<VeterinarioSimple>? veterinarios;
+    private DateTime fechaCita = DateTime.Now.AddDays(1);
+    private string? errorMessage;
+    private bool isLoading;
+    private bool isLoadingMascotas = true;
+    private bool isLoadingVeterinarios = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadMascotas();
+        await LoadVeterinarios();
+    }
+
+    private async Task LoadMascotas()
+    {
+        isLoadingMascotas = true;
+        try
+        {
+            // Admin ve todas, cliente y veterinario ven solo las suyas
+            var role = AuthService.CurrentUser?.Role;
+            var propietarioFiltro = (role == "cliente" || role == "veterinario") 
+                ? AuthService.CurrentUser?.Username 
+                : null;
+            
+            var response = await MascotaService.GetMascotasAsync(
+                page: 1,
+                pageSize: 100,
+                propietario: propietarioFiltro,
+                includeDeleted: false  // No mostrar mascotas eliminadas al crear citas
+            );
+            mascotas = response?.Items ?? new List<Mascota>();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar mascotas: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingMascotas = false;
+        }
+    }
+
+    private async Task LoadVeterinarios()
+    {
+        isLoadingVeterinarios = true;
+        try
+        {
+            veterinarios = await UsuarioService.GetVeterinariosAsync();
+            if (veterinarios == null)
+            {
+                veterinarios = new List<VeterinarioSimple>();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar veterinarios: {ex.Message}";
+            veterinarios = new List<VeterinarioSimple>();
+        }
+        finally
+        {
+            isLoadingVeterinarios = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(cita.IdMascota))
+            {
+                errorMessage = "Debes seleccionar una mascota";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(cita.Motivo))
+            {
+                errorMessage = "El motivo es requerido";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(cita.Veterinario))
+            {
+                errorMessage = "Debes seleccionar un veterinario";
+                return;
+            }
+
+            if (fechaCita < DateTime.Now)
+            {
+                errorMessage = "La fecha debe ser futura";
+                return;
+            }
+
+            cita.Fecha = fechaCita;
+
+            var result = await CitaService.CreateCitaAsync(cita);
+
+            if (result != null)
+            {
+                Navigation.NavigateTo("/citas");
+            }
+            else
+            {
+                errorMessage = "Error al crear la cita";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/citas");
+    }
+}

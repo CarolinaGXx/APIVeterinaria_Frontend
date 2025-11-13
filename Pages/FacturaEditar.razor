@@ -1,0 +1,294 @@
+@page "/facturas/{Id}/editar"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject FacturaService FacturaService
+@inject NavigationManager Navigation
+
+<PageTitle>Editar Factura - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a></h3>
+    </div>
+}
+else if (isLoadingFactura)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+        <p class="mt-3">Cargando factura...</p>
+    </div>
+}
+else if (facturaOriginal == null)
+{
+    <div class="alert alert-danger">
+        Factura no encontrada
+    </div>
+}
+else if (!CanEditFactura())
+{
+    <div class="container">
+        <div class="alert alert-warning mt-5">
+            <h4>No puedes editar esta factura</h4>
+            <p>Solo se pueden editar facturas en estado "pendiente".</p>
+            <p class="mb-0">Además, debes ser el veterinario que creó la factura o un administrador.</p>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-primary mt-3" @onclick="GoBack">← Volver a Detalle</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h4 class="mb-0">Editar Factura @facturaOriginal.NumeroFactura</h4>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @errorMessage
+                            </div>
+                        }
+
+                        <EditForm Model="@facturaUpdate" OnValidSubmit="HandleSubmit">
+                            <!-- Información de la Cita (Solo lectura) -->
+                            <div class="alert alert-info mb-3">
+                                <strong>Información de la Cita (No editable):</strong><br />
+                                <strong>Mascota:</strong> @facturaOriginal.MascotaNombre<br />
+                                <strong>Propietario:</strong> @facturaOriginal.PropietarioNombre<br />
+                                <strong>Fecha Emisión:</strong> @facturaOriginal.FechaFactura.ToString("dd/MM/yyyy HH:mm")
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Tipo de Servicio *</label>
+                                <InputSelect @bind-Value="facturaUpdate.TipoServicio" class="form-select">
+                                    <option value="">Selecciona...</option>
+                                    <option value="consulta_general">Consulta General</option>
+                                    <option value="vacunacion">Vacunación</option>
+                                    <option value="cirugia">Cirugía</option>
+                                    <option value="emergencia">Emergencia</option>
+                                    <option value="control">Control</option>
+                                    <option value="desparasitacion">Desparasitación</option>
+                                </InputSelect>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Descripción del Servicio *</label>
+                                <InputTextArea @bind-Value="facturaUpdate.Descripcion" class="form-control" rows="4" 
+                                               placeholder="Describe detalladamente el servicio prestado..." />
+                                <small class="text-muted">Incluye detalles importantes para el cliente</small>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Valor del Servicio * ($)</label>
+                                    <InputNumber @bind-Value="valorServicio" class="form-control" 
+                                                 @oninput="CalcularTotal" step="0.01" min="0" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">IVA ($)</label>
+                                    <InputNumber @bind-Value="iva" class="form-control" 
+                                                 @oninput="CalcularTotal" step="0.01" min="0" />
+                                    <small class="text-muted">Impuesto sobre el valor del servicio</small>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Descuento ($)</label>
+                                <InputNumber @bind-Value="descuento" class="form-control" 
+                                             @oninput="CalcularTotal" step="0.01" min="0" />
+                                <small class="text-muted">Descuento aplicado (si aplica)</small>
+                            </div>
+
+                            <div class="alert alert-success">
+                                <h5 class="mb-0">Total a Pagar: <strong>$@CalcularTotalDisplay()</strong></h5>
+                                <small class="text-muted">
+                                    Valor: $@valorServicio.ToString("N2") + 
+                                    IVA: $@iva.ToString("N2") - 
+                                    Descuento: $@descuento.ToString("N2")
+                                </small>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-warning btn-lg" disabled="@isLoading">
+                                    @if (isLoading)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                    }
+                                    Guardar Cambios
+                                </button>
+                                <button type="button" class="btn btn-secondary" @onclick="Cancel">
+                                    Cancelar
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private Factura? facturaOriginal;
+    private FacturaUpdate facturaUpdate = new();
+    private decimal valorServicio;
+    private decimal iva;
+    private decimal descuento;
+    
+    private string? errorMessage;
+    private bool isLoading;
+    private bool isLoadingFactura = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadFactura();
+    }
+
+    private async Task LoadFactura()
+    {
+        isLoadingFactura = true;
+        errorMessage = null;
+
+        try
+        {
+            facturaOriginal = await FacturaService.GetFacturaAsync(Id);
+
+            if (facturaOriginal != null)
+            {
+                // Cargar datos actuales en el formulario de edición
+                facturaUpdate.TipoServicio = facturaOriginal.TipoServicio;
+                facturaUpdate.Descripcion = facturaOriginal.Descripcion;
+                valorServicio = facturaOriginal.ValorServicio;
+                iva = facturaOriginal.Iva;
+                descuento = facturaOriginal.Descuento;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar la factura: " + ex.Message;
+        }
+        finally
+        {
+            isLoadingFactura = false;
+        }
+    }
+
+    private void CalcularTotal()
+    {
+        StateHasChanged();
+    }
+
+    private string CalcularTotalDisplay()
+    {
+        var total = valorServicio + iva - descuento;
+        return total.ToString("N2");
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(facturaUpdate.TipoServicio))
+            {
+                errorMessage = "El tipo de servicio es requerido";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(facturaUpdate.Descripcion))
+            {
+                errorMessage = "La descripción es requerida";
+                return;
+            }
+
+            if (valorServicio <= 0)
+            {
+                errorMessage = "El valor del servicio debe ser mayor a 0";
+                return;
+            }
+
+            if (iva < 0)
+            {
+                errorMessage = "El IVA no puede ser negativo";
+                return;
+            }
+
+            if (descuento < 0)
+            {
+                errorMessage = "El descuento no puede ser negativo";
+                return;
+            }
+
+            // Asignar valores al objeto de actualización
+            facturaUpdate.ValorServicio = valorServicio;
+            facturaUpdate.Iva = iva;
+            facturaUpdate.Descuento = descuento;
+
+            var result = await FacturaService.UpdateFacturaAsync(Id, facturaUpdate);
+
+            if (result != null)
+            {
+                Navigation.NavigateTo($"/facturas/{Id}");
+            }
+            else
+            {
+                errorMessage = "Error al actualizar la factura";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool CanEditFactura()
+    {
+        if (facturaOriginal == null || facturaOriginal.Estado != "pendiente") 
+            return false;
+        
+        var role = AuthService.CurrentUser?.Role;
+        var username = AuthService.CurrentUser?.Username;
+        
+        // Admin puede editar cualquier factura pendiente
+        if (role == "admin")
+            return true;
+        
+        // Veterinario solo puede editar sus propias facturas pendientes
+        if (role == "veterinario" && facturaOriginal.Veterinario == username)
+            return true;
+        
+        return false;
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo($"/facturas/{Id}");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo($"/facturas/{Id}");
+    }
+}

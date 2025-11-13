@@ -1,0 +1,349 @@
+@page "/citas/{id}/editar"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject CitaService CitaService
+@inject UsuarioService UsuarioService
+@inject NavigationManager Navigation
+
+<PageTitle>Editar Cita - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a> para editar citas</h3>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow">
+                    <div class="card-header bg-warning text-dark">
+                        <h4 class="mb-0">Editar Cita</h4>
+                    </div>
+                    <div class="card-body">
+                        @if (isLoadingCita)
+                        {
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                                <p class="mt-2">Cargando información...</p>
+                            </div>
+                        }
+                        else if (errorMessage != null)
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                <strong>Error:</strong> @errorMessage
+                            </div>
+                        }
+                        else if (citaUpdate == null)
+                        {
+                            <div class="alert alert-warning">
+                                Cita no encontrada.
+                            </div>
+                            <button class="btn btn-secondary" @onclick="Cancel">Volver</button>
+                        }
+                        else
+                        {
+                            <EditForm Model="@citaUpdate" OnValidSubmit="HandleSubmit">
+                                <div class="mb-3">
+                                    <label class="form-label">Mascota</label>
+                                    <input type="text" class="form-control" value="@citaOriginal?.NombreMascota" disabled />
+                                    <small class="text-muted">No se puede cambiar la mascota de una cita</small>
+                                </div>
+
+                                @if (isClienteRole || AuthService.CurrentUser?.Role == "admin")
+                                {
+                                    <div class="alert alert-info">
+                                        <strong>Campos editables para clientes:</strong> Fecha, Motivo, Veterinario
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Fecha y Hora *</label>
+                                        <InputDate Type="InputDateType.DateTimeLocal" @bind-Value="fechaCita" class="form-control" />
+                                        <small class="text-muted">Selecciona fecha y hora de la cita</small>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Motivo de la Consulta *</label>
+                                        <InputTextArea @bind-Value="citaUpdate.Motivo" class="form-control" rows="3" 
+                                                       placeholder="Describe el motivo de la consulta..." />
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Veterinario *</label>
+                                        <InputSelect @bind-Value="citaUpdate.Veterinario" class="form-select">
+                                            <option value="">Selecciona un veterinario...</option>
+                                            @foreach (var vet in veterinarios)
+                                            {
+                                                <option value="@vet.Username">@vet.Nombre</option>
+                                            }
+                                        </InputSelect>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="alert alert-warning">
+                                        <small>Los veterinarios no pueden modificar fecha, motivo o veterinario.</small>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Fecha y Hora</label>
+                                        <input type="text" class="form-control" value="@citaOriginal?.Fecha.ToString("dd/MM/yyyy HH:mm")" disabled />
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Motivo</label>
+                                        <textarea class="form-control" rows="2" disabled>@citaOriginal?.Motivo</textarea>
+                                    </div>
+                                }
+
+                                @if (AuthService.CurrentUser?.Role == "veterinario" || AuthService.CurrentUser?.Role == "admin")
+                                {
+                                    <div class="alert alert-success">
+                                        <strong>Campos editables para veterinarios:</strong> Estado, Diagnóstico, Tratamiento
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Estado</label>
+                                        <InputSelect @bind-Value="citaUpdate.Estado" class="form-select">
+                                            <option value="">Selecciona...</option>
+                                            <option value="pendiente">Pendiente</option>
+                                            <option value="confirmada">Confirmada</option>
+                                            <option value="completada">Completada</option>
+                                        </InputSelect>
+                                        <small class="text-muted">Los veterinarios no pueden marcar como cancelada</small>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Diagnóstico</label>
+                                        <InputTextArea @bind-Value="citaUpdate.Diagnostico" class="form-control" rows="3" 
+                                                       placeholder="Resultado del diagnóstico..." />
+                                        <small class="text-muted">Evaluación médica de la mascota</small>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Tratamiento</label>
+                                        <InputTextArea @bind-Value="citaUpdate.Tratamiento" class="form-control" rows="3" 
+                                                       placeholder="Tratamiento recomendado..." />
+                                        <small class="text-muted">Medicación y cuidados recomendados</small>
+                                    </div>
+                                }
+
+                                <div class="alert alert-info">
+                                    <strong>Nota:</strong> Los campos marcados con * son obligatorios.
+                                </div>
+
+                                <div class="d-flex justify-content-between">
+                                    <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@isLoading">
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" class="btn btn-warning" disabled="@isLoading">
+                                        @if (isLoading)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                            <span>Actualizando...</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Actualizar Cita</span>
+                                        }
+                                    </button>
+                                </div>
+                            </EditForm>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private CitaUpdate citaUpdate = new();
+    private Cita? citaOriginal;
+    private List<VeterinarioSimple> veterinarios = new();
+    private DateTime fechaCita = DateTime.Now;
+    private string? errorMessage;
+    private bool isLoading;
+    private bool isLoadingCita = true;
+    private bool isClienteRole = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        isClienteRole = AuthService.CurrentUser?.Role == "cliente";
+        
+        if (isClienteRole || AuthService.CurrentUser?.Role == "admin")
+        {
+            await LoadVeterinarios();
+        }
+        
+        await LoadCita();
+    }
+
+    private async Task LoadVeterinarios()
+    {
+        try
+        {
+            veterinarios = await UsuarioService.GetVeterinariosAsync() ?? new List<VeterinarioSimple>();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar veterinarios: {ex.Message}";
+        }
+    }
+
+    private async Task LoadCita()
+    {
+        isLoadingCita = true;
+        errorMessage = null;
+
+        try
+        {
+            citaOriginal = await CitaService.GetCitaAsync(Id);
+
+            if (citaOriginal != null)
+            {
+                // Verificar permisos
+                if (!CanEditCita(citaOriginal))
+                {
+                    errorMessage = "No tienes permisos para editar esta cita.";
+                    return;
+                }
+
+                // Pre-llenar el formulario con los datos actuales
+                citaUpdate = new CitaUpdate
+                {
+                    // NO incluimos IdMascota - ya no se puede cambiar
+                    Fecha = citaOriginal.Fecha,
+                    Motivo = citaOriginal.Motivo,
+                    Veterinario = citaOriginal.Veterinario,
+                    Estado = citaOriginal.Estado,
+                    Diagnostico = citaOriginal.Diagnostico,
+                    Tratamiento = citaOriginal.Tratamiento
+                };
+
+                fechaCita = citaOriginal.Fecha;
+            }
+            else
+            {
+                errorMessage = "Cita no encontrada.";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar la cita: " + ex.Message;
+        }
+        finally
+        {
+            isLoadingCita = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            // Ya no validamos IdMascota porque no se puede cambiar
+
+            if (string.IsNullOrWhiteSpace(citaUpdate.Motivo))
+            {
+                errorMessage = "El motivo de la consulta es requerido";
+                return;
+            }
+
+            // Actualizar fecha desde el campo del formulario
+            citaUpdate.Fecha = fechaCita;
+
+            // Si es cliente, no permitir cambiar el estado
+            if (isClienteRole)
+            {
+                citaUpdate.Estado = citaOriginal?.Estado; // Mantener el estado original
+                citaUpdate.Diagnostico = null;
+                citaUpdate.Tratamiento = null;
+            }
+
+            var result = await CitaService.UpdateCitaAsync(Id, citaUpdate);
+
+            if (result != null)
+            {
+                Navigation.NavigateTo($"/citas/{Id}");
+            }
+            else
+            {
+                errorMessage = "Error al actualizar la cita";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool CanEditCita(Cita cita)
+    {
+        var role = AuthService.CurrentUser?.Role;
+        
+        // No se pueden editar citas canceladas o completadas
+        if (cita.Estado == "cancelada" || cita.Estado == "completada")
+            return false;
+        
+        // Admin y veterinarios pueden editar todas
+        if (role == "admin" || role == "veterinario")
+            return true;
+        
+        // Clientes pueden editar sus propias citas pendientes
+        if (role == "cliente" && cita.Estado == "pendiente")
+            return true;
+        
+        return false;
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo($"/citas/{Id}");
+    }
+}

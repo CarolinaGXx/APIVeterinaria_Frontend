@@ -1,0 +1,169 @@
+@page "/register"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Registro - Sistema Veterinario</PageTitle>
+
+<div class="login-container">
+    <div class="login-card">
+        <h2 class="text-center mb-4">🐾 Crear Cuenta</h2>
+        
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger" role="alert">
+                @errorMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success" role="alert">
+                @successMessage
+            </div>
+        }
+
+        <EditForm Model="@registerModel" OnValidSubmit="HandleRegister">
+            <DataAnnotationsValidator />
+            
+            <div class="mb-3">
+                <label class="form-label">Usuario *</label>
+                <InputText @bind-Value="registerModel.Username" class="form-control" placeholder="Tu nombre de usuario" />
+                <ValidationMessage For="@(() => registerModel.Username)" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Contraseña *</label>
+                <InputText type="password" @bind-Value="registerModel.Password" class="form-control" placeholder="Mínimo 6 caracteres" />
+                <ValidationMessage For="@(() => registerModel.Password)" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Nombre Completo *</label>
+                <InputText @bind-Value="registerModel.Nombre" class="form-control" placeholder="Tu nombre completo" />
+                <ValidationMessage For="@(() => registerModel.Nombre)" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Edad</label>
+                <InputNumber @bind-Value="registerModel.Edad" class="form-control" placeholder="Tu edad" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Teléfono</label>
+                <InputText @bind-Value="registerModel.Telefono" class="form-control" placeholder="Número de contacto" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Tipo de Cuenta *</label>
+                <InputSelect @bind-Value="registerModel.Role" class="form-select">
+                    <option value="cliente">Cliente</option>
+                </InputSelect>
+                <small class="text-muted">
+                    Selecciona "Cliente" si tienes mascotas.
+                </small>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    <span>Creando cuenta...</span>
+                }
+                else
+                {
+                    <span>Crear Cuenta</span>
+                }
+            </button>
+        </EditForm>
+
+        <div class="mt-3 text-center">
+            <small class="text-muted">¿Ya tienes cuenta? <a href="/login">Inicia sesión aquí</a></small>
+        </div>
+    </div>
+</div>
+
+<style>
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 80vh;
+        padding: 20px;
+    }
+
+    .login-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 450px;
+    }
+</style>
+
+@code {
+    private RegisterModel registerModel = new();
+    private string? errorMessage;
+    private string? successMessage;
+    private bool isLoading;
+
+    private class RegisterModel
+    {
+        public string Username { get; set; } = "";
+        public string Password { get; set; } = "";
+        public string Nombre { get; set; } = "";
+        public int? Edad { get; set; }
+        public string? Telefono { get; set; }
+        public string Role { get; set; } = "cliente";
+    }
+
+    private async Task HandleRegister()
+    {
+        errorMessage = null;
+        successMessage = null;
+        isLoading = true;
+
+        try
+        {
+            var usuarioCreate = new UsuarioCreate
+            {
+                Username = registerModel.Username,
+                Password = registerModel.Password,
+                Nombre = registerModel.Nombre,
+                Edad = registerModel.Edad ?? 0,
+                Telefono = registerModel.Telefono ?? "",
+            };
+
+            var success = await AuthService.RegisterAsync(usuarioCreate);
+
+            if (success)
+            {
+                successMessage = "Cuenta creada exitosamente. Redirigiendo al login...";
+                await Task.Delay(2000);
+                Navigation.NavigateTo("/login");
+            }
+            else
+            {
+                errorMessage = "Error al crear la cuenta. Es posible que el nombre de usuario ya exista.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al crear la cuenta: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+}

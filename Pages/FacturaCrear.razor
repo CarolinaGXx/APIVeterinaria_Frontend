@@ -1,0 +1,533 @@
+@page "/facturas/crear"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject FacturaService FacturaService
+@inject CitaService CitaService
+@inject VacunaService VacunaService
+@inject NavigationManager Navigation
+
+<PageTitle>Nueva Factura - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a></h3>
+    </div>
+}
+else if (!CanCreateFactura())
+{
+    <div class="container">
+        <div class="alert alert-warning mt-5">
+            <h4>⚠️ Acceso No Autorizado</h4>
+            <p>Solo los veterinarios y administradores pueden crear facturas.</p>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-primary mt-3" @onclick="GoBack">← Volver a Facturas</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h4 class="mb-0">💰 Nueva Factura</h4>
+                    </div>
+                    <div class="card-body">
+                        @if (isLoadingData)
+                        {
+                            <div class="text-center py-3">
+                                <div class="spinner-border text-primary"></div>
+                                <p>Cargando datos...</p>
+                            </div>
+                        }
+                        else
+                        {
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="alert alert-danger" role="alert">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            <EditForm Model="@factura" OnValidSubmit="HandleSubmit">
+                                <!-- Tipo de Registro: Cita o Vacuna -->
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold">📋 Tipo de Registro *</label>
+                                    <div class="btn-group w-100" role="group">
+                                        <input type="radio" class="btn-check" name="tipoRegistro" id="tipoCita" value="cita" 
+                                               checked="@(tipoRegistro == "cita")" @onchange="@(() => OnTipoRegistroChanged("cita"))">
+                                        <label class="btn btn-outline-primary" for="tipoCita">
+                                            <i class="bi bi-calendar-check"></i> 📅 Cita
+                                        </label>
+                                        
+                                        <input type="radio" class="btn-check" name="tipoRegistro" id="tipoVacuna" value="vacuna"
+                                               checked="@(tipoRegistro == "vacuna")" @onchange="@(() => OnTipoRegistroChanged("vacuna"))">
+                                        <label class="btn btn-outline-success" for="tipoVacuna">
+                                            <i class="bi bi-syringe"></i> 💉 Vacuna
+                                        </label>
+                                    </div>
+                                    <small class="text-muted">Selecciona si la factura es por una cita o una vacuna aplicada</small>
+                                </div>
+
+                                @if (tipoRegistro == "cita")
+                                {
+                                    <!-- Selector de Cita -->
+                                    <div class="mb-3">
+                                        <label class="form-label">Cita *</label>
+                                        @if (citas == null || !citas.Any())
+                                        {
+                                            <div class="alert alert-warning">
+                                                <small>⚠️ No hay citas disponibles para facturar</small>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <InputSelect @bind-Value="factura.IdCita" class="form-select" @onchange="OnCitaChanged">
+                                                <option value="">Selecciona una cita...</option>
+                                                @foreach (var cita in citas)
+                                                {
+                                                    <option value="@cita.IdCita">
+                                                        @cita.Fecha.ToString("dd/MM/yyyy HH:mm") - 🐾 @cita.NombreMascota - @cita.Motivo
+                                                    </option>
+                                                }
+                                            </InputSelect>
+                                            <small class="text-muted">Selecciona la cita para la cual se emitirá la factura</small>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <!-- Selector de Vacuna -->
+                                    <div class="mb-3">
+                                        <label class="form-label">Vacuna *</label>
+                                        @if (vacunas == null || !vacunas.Any())
+                                        {
+                                            <div class="alert alert-warning">
+                                                <small>⚠️ No hay vacunas disponibles para facturar</small>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <InputSelect @bind-Value="factura.IdVacuna" class="form-select" @onchange="OnVacunaChanged">
+                                                <option value="">Selecciona una vacuna...</option>
+                                                @foreach (var vacuna in vacunas)
+                                                {
+                                                    <option value="@vacuna.IdVacuna">
+                                                        @vacuna.FechaAplicacion.ToString("dd/MM/yyyy") - 🐾 @vacuna.MascotaNombre - 💉 @vacuna.TipoVacuna
+                                                    </option>
+                                                }
+                                            </InputSelect>
+                                            <small class="text-muted">Selecciona la vacuna para la cual se emitirá la factura</small>
+                                        }
+                                    </div>
+                                }
+
+                                @if (tipoRegistro == "cita" && citaSeleccionada != null)
+                                {
+                                    <div class="alert alert-info mb-3">
+                                        <strong>📋 Información de la Cita:</strong><br />
+                                        🐾 <strong>Mascota:</strong> @citaSeleccionada.NombreMascota<br />
+                                        👤 <strong>Propietario:</strong> @citaSeleccionada.PropietarioNombre<br />
+                                        📅 <strong>Fecha:</strong> @citaSeleccionada.Fecha.ToString("dd/MM/yyyy HH:mm")<br />
+                                        📝 <strong>Motivo:</strong> @citaSeleccionada.Motivo
+                                    </div>
+                                }
+                                else if (tipoRegistro == "vacuna" && vacunaSeleccionada != null)
+                                {
+                                    <div class="alert alert-success mb-3">
+                                        <strong>💉 Información de la Vacuna:</strong><br />
+                                        🐾 <strong>Mascota:</strong> @vacunaSeleccionada.MascotaNombre<br />
+                                        👤 <strong>Propietario:</strong> @vacunaSeleccionada.PropietarioNombre<br />
+                                        📅 <strong>Fecha Aplicación:</strong> @vacunaSeleccionada.FechaAplicacion.ToString("dd/MM/yyyy")<br />
+                                        💉 <strong>Tipo Vacuna:</strong> @vacunaSeleccionada.TipoVacuna<br />
+                                        🔬 <strong>Lote:</strong> @vacunaSeleccionada.LoteVacuna
+                                    </div>
+                                }
+
+                                <div class="mb-3">
+                                    <label class="form-label">Tipo de Servicio *</label>
+                                    @if (tipoRegistro == "vacuna")
+                                    {
+                                        <input type="text" class="form-control" value="💉 Vacunación" disabled />
+                                        <small class="text-muted">El tipo de servicio para vacunas es siempre "Vacunación"</small>
+                                    }
+                                    else
+                                    {
+                                        <InputSelect @bind-Value="factura.TipoServicio" class="form-select">
+                                            <option value="">Selecciona...</option>
+                                            <option value="consulta_general">🩺 Consulta General</option>
+                                            <option value="cirugia">🔪 Cirugía</option>
+                                            <option value="emergencia">🚨 Emergencia</option>
+                                            <option value="control">📋 Control</option>
+                                            <option value="desparasitacion">💊 Desparasitación</option>
+                                        </InputSelect>
+                                    }
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Descripción del Servicio *</label>
+                                    <InputTextArea @bind-Value="factura.Descripcion" class="form-control" rows="4" 
+                                                   placeholder="Describe detalladamente el servicio prestado..." />
+                                    <small class="text-muted">Incluye detalles importantes para el cliente</small>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Valor del Servicio * ($)</label>
+                                        <InputNumber @bind-Value="factura.ValorServicio" class="form-control" 
+                                                     @oninput="CalcularTotal" step="0.01" min="0" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">IVA ($)</label>
+                                        <InputNumber @bind-Value="factura.Iva" class="form-control" 
+                                                     @oninput="CalcularTotal" step="0.01" min="0" />
+                                        <small class="text-muted">Impuesto sobre el valor del servicio</small>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Descuento ($)</label>
+                                    <InputNumber @bind-Value="factura.Descuento" class="form-control" 
+                                                 @oninput="CalcularTotal" step="0.01" min="0" />
+                                    <small class="text-muted">Descuento aplicado (si aplica)</small>
+                                </div>
+
+                                <div class="alert alert-success">
+                                    <h5 class="mb-0">💵 Total a Pagar: <strong>$@CalcularTotalDisplay()</strong></h5>
+                                    <small class="text-muted">
+                                        Valor: $@factura.ValorServicio.ToString("N2") + 
+                                        IVA: $@factura.Iva.ToString("N2") - 
+                                        Descuento: $@factura.Descuento.ToString("N2")
+                                    </small>
+                                </div>
+
+                                <div class="d-grid gap-2">
+                                    <button type="submit" class="btn btn-success btn-lg" disabled="@isLoading">
+                                        @if (isLoading)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                        }
+                                        💾 Crear Factura
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" @onclick="Cancel">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </EditForm>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private FacturaCreate factura = new();
+    private List<Cita> citas = new();
+    private List<Vacuna> vacunas = new();
+    private Cita? citaSeleccionada = null;
+    private Vacuna? vacunaSeleccionada = null;
+    private string? errorMessage;
+    private bool isLoading;
+    private bool isLoadingData = true;
+    private string tipoRegistro = "cita"; // "cita" o "vacuna"
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        if (!CanCreateFactura())
+        {
+            return;
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoadingData = true;
+        try
+        {
+            await Task.WhenAll(LoadCitas(), LoadVacunas());
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar datos: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingData = false;
+        }
+    }
+
+    private async Task LoadCitas()
+    {
+        try
+        {
+            // Cargar citas completadas
+            var citasResponse = await CitaService.GetCitasAsync(
+                page: 1,
+                pageSize: 100,
+                estado: "completada",
+                includeDeleted: false
+            );
+            
+            var todasCitas = citasResponse?.Items ?? new List<Cita>();
+            
+            // Cargar todas las facturas para saber qué citas ya tienen factura
+            var facturasResponse = await FacturaService.GetFacturasAsync(
+                page: 1,
+                pageSize: 500,
+                includeDeleted: false
+            );
+            
+            var facturas = facturasResponse?.Items ?? new List<Factura>();
+            var citasConFactura = new HashSet<string>(
+                facturas.Where(f => !string.IsNullOrEmpty(f.IdCita))
+                        .Select(f => f.IdCita!)
+            );
+            
+            // Filtrar solo citas que NO tienen factura
+            citas = todasCitas.Where(c => !citasConFactura.Contains(c.IdCita)).ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar citas: {ex.Message}";
+        }
+    }
+
+    private async Task LoadVacunas()
+    {
+        try
+        {
+            // Cargar todas las vacunas
+            var vacunasResponse = await VacunaService.GetVacunasAsync(
+                page: 1,
+                pageSize: 500
+            );
+            
+            var todasVacunas = vacunasResponse?.Items ?? new List<Vacuna>();
+            
+            // Cargar todas las facturas para saber qué vacunas ya tienen factura
+            var facturasResponse = await FacturaService.GetFacturasAsync(
+                page: 1,
+                pageSize: 500,
+                includeDeleted: false
+            );
+            
+            var facturas = facturasResponse?.Items ?? new List<Factura>();
+            var vacunasConFactura = new HashSet<string>(
+                facturas.Where(f => !string.IsNullOrEmpty(f.IdVacuna))
+                        .Select(f => f.IdVacuna!)
+            );
+            
+            // Filtrar solo vacunas que NO tienen factura
+            vacunas = todasVacunas.Where(v => !vacunasConFactura.Contains(v.IdVacuna)).ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar vacunas: {ex.Message}";
+        }
+    }
+
+    private void OnTipoRegistroChanged(string tipo)
+    {
+        tipoRegistro = tipo;
+        
+        // Limpiar selecciones
+        factura.IdCita = null;
+        factura.IdVacuna = null;
+        citaSeleccionada = null;
+        vacunaSeleccionada = null;
+        factura.Descripcion = string.Empty;
+        
+        // Configurar tipo de servicio según el tipo de registro
+        if (tipo == "vacuna")
+        {
+            factura.TipoServicio = "vacunacion";
+        }
+        else
+        {
+            factura.TipoServicio = string.Empty;
+        }
+        
+        StateHasChanged();
+    }
+
+    private void OnCitaChanged(ChangeEventArgs e)
+    {
+        var citaId = e.Value?.ToString();
+        if (!string.IsNullOrEmpty(citaId))
+        {
+            citaSeleccionada = citas.FirstOrDefault(c => c.IdCita == citaId);
+            
+            // Pre-llenar la descripción basada en la cita
+            if (citaSeleccionada != null)
+            {
+                factura.Descripcion = $"Servicio veterinario: {citaSeleccionada.Motivo}";
+                if (!string.IsNullOrEmpty(citaSeleccionada.Diagnostico))
+                {
+                    factura.Descripcion += $"\nDiagnóstico: {citaSeleccionada.Diagnostico}";
+                }
+                if (!string.IsNullOrEmpty(citaSeleccionada.Tratamiento))
+                {
+                    factura.Descripcion += $"\nTratamiento: {citaSeleccionada.Tratamiento}";
+                }
+            }
+        }
+        else
+        {
+            citaSeleccionada = null;
+        }
+    }
+
+    private void OnVacunaChanged(ChangeEventArgs e)
+    {
+        var vacunaId = e.Value?.ToString();
+        if (!string.IsNullOrEmpty(vacunaId))
+        {
+            vacunaSeleccionada = vacunas.FirstOrDefault(v => v.IdVacuna == vacunaId);
+            
+            // Pre-llenar la descripción basada en la vacuna
+            if (vacunaSeleccionada != null)
+            {
+                factura.Descripcion = $"Vacuna aplicada: {vacunaSeleccionada.TipoVacuna}";
+                if (!string.IsNullOrEmpty(vacunaSeleccionada.LoteVacuna))
+                {
+                    factura.Descripcion += $"\nLote: {vacunaSeleccionada.LoteVacuna}";
+                }
+                factura.Descripcion += $"\nFecha de aplicación: {vacunaSeleccionada.FechaAplicacion:dd/MM/yyyy}";
+                
+                if (vacunaSeleccionada.ProximaDosis.HasValue)
+                {
+                    factura.Descripcion += $"\nPróxima dosis: {vacunaSeleccionada.ProximaDosis.Value:dd/MM/yyyy}";
+                }
+            }
+        }
+        else
+        {
+            vacunaSeleccionada = null;
+        }
+    }
+
+    private void CalcularTotal()
+    {
+        // Este método se llama cuando cambian los valores
+        // El cálculo visual se hace en CalcularTotalDisplay
+        StateHasChanged();
+    }
+
+    private string CalcularTotalDisplay()
+    {
+        var total = factura.ValorServicio + factura.Iva - factura.Descuento;
+        return total.ToString("N2");
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            // Validar que haya seleccionado cita o vacuna según el tipo
+            if (tipoRegistro == "cita")
+            {
+                if (string.IsNullOrWhiteSpace(factura.IdCita))
+                {
+                    errorMessage = "Debes seleccionar una cita";
+                    return;
+                }
+                // Limpiar id_vacuna si está seleccionada por error
+                factura.IdVacuna = null;
+            }
+            else if (tipoRegistro == "vacuna")
+            {
+                if (string.IsNullOrWhiteSpace(factura.IdVacuna))
+                {
+                    errorMessage = "Debes seleccionar una vacuna";
+                    return;
+                }
+                // Limpiar id_cita si está seleccionada por error
+                factura.IdCita = null;
+                // Forzar tipo de servicio a vacunación
+                factura.TipoServicio = "vacunacion";
+            }
+
+            if (string.IsNullOrWhiteSpace(factura.TipoServicio))
+            {
+                errorMessage = "El tipo de servicio es requerido";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(factura.Descripcion))
+            {
+                errorMessage = "La descripción es requerida";
+                return;
+            }
+
+            if (factura.ValorServicio <= 0)
+            {
+                errorMessage = "El valor del servicio debe ser mayor a 0";
+                return;
+            }
+
+            if (factura.Iva < 0)
+            {
+                errorMessage = "El IVA no puede ser negativo";
+                return;
+            }
+
+            if (factura.Descuento < 0)
+            {
+                errorMessage = "El descuento no puede ser negativo";
+                return;
+            }
+
+            var result = await FacturaService.CreateFacturaAsync(factura);
+
+            if (result != null)
+            {
+                Navigation.NavigateTo($"/facturas/{result.IdFactura}");
+            }
+            else
+            {
+                errorMessage = "Error al crear la factura";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool CanCreateFactura()
+    {
+        var role = AuthService.CurrentUser?.Role;
+        return role == "admin" || role == "veterinario";
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/facturas");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/facturas");
+    }
+}

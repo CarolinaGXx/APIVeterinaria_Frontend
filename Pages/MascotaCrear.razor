@@ -1,0 +1,184 @@
+@page "/mascotas/crear"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject MascotaService MascotaService
+@inject NavigationManager Navigation
+
+<PageTitle>Nueva Mascota - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a></h3>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">Registrar Nueva Mascota</h4>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @errorMessage
+                            </div>
+                        }
+
+                        <EditForm Model="@mascota" OnValidSubmit="HandleSubmit">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary class="alert alert-warning" />
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Nombre *</label>
+                                <InputText @bind-Value="mascota.Nombre" class="form-control" placeholder="Ej: Firulais" />
+                                <ValidationMessage For="@(() => mascota.Nombre)" class="text-danger" />
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Tipo *</label>
+                                    <InputSelect @bind-Value="mascota.Tipo" class="form-select">
+                                        <option value="">Selecciona...</option>
+                                        <option value="perro">Perro</option>
+                                        <option value="gato">Gato</option>
+                                        <option value="ave">Ave</option>
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => mascota.Tipo)" class="text-danger" />
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Raza *</label>
+                                    <InputText @bind-Value="mascota.Raza" class="form-control" placeholder="Ej: Labrador" />
+                                    <ValidationMessage For="@(() => mascota.Raza)" class="text-danger" />
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Edad (años) *</label>
+                                    <InputNumber @bind-Value="mascota.Edad" class="form-control" min="0" max="50" />
+                                    <ValidationMessage For="@(() => mascota.Edad)" class="text-danger" />
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Peso (kg) *</label>
+                                    <InputNumber @bind-Value="mascota.Peso" class="form-control" step="0.1" min="0" />
+                                    <ValidationMessage For="@(() => mascota.Peso)" class="text-danger" />
+                                </div>
+                            </div>
+
+                            <div class="alert alert-info mb-3">
+                                <small>
+                                    <strong>Nota:</strong> La mascota se registrará automáticamente a tu nombre.
+                                </small>
+                            </div>
+
+                            <div class="d-flex justify-content-between">
+                                <button type="button" class="btn btn-secondary" @onclick="Cancel">
+                                    Cancelar
+                                </button>
+                                <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                                    @if (isLoading)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                        <span>Guardando...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Guardar Mascota</span>
+                                    }
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private MascotaCreate mascota = new();
+    private string? errorMessage;
+    private bool isLoading;
+
+    protected override void OnInitialized()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            // Validaciones básicas
+            if (string.IsNullOrWhiteSpace(mascota.Nombre))
+            {
+                errorMessage = "El nombre es requerido";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(mascota.Tipo))
+            {
+                errorMessage = "El tipo es requerido";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(mascota.Raza))
+            {
+                errorMessage = "La raza es requerida";
+                return;
+            }
+
+            if (mascota.Edad < 0)
+            {
+                errorMessage = "La edad debe ser positiva";
+                return;
+            }
+
+            if (mascota.Peso <= 0)
+            {
+                errorMessage = "El peso debe ser mayor a 0";
+                return;
+            }
+
+            // El propietario lo asigna automáticamente el backend del usuario autenticado
+            var result = await MascotaService.CreateMascotaAsync(mascota);
+
+            if (result != null)
+            {
+                Navigation.NavigateTo("/mascotas");
+            }
+            else
+            {
+                errorMessage = "Error al crear la mascota";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/mascotas");
+    }
+}
