@@ -1,0 +1,183 @@
+@page "/usuarios/crear"
+@using VeterinariaApp.Models
+@using VeterinariaApp.Services
+@inject AuthService AuthService
+@inject UsuarioService UsuarioService
+@inject NavigationManager Navigation
+
+<PageTitle>Crear Usuario - Veterinaria</PageTitle>
+
+@if (AuthService.CurrentUser?.Role != "admin")
+{
+    <div class="container">
+        <div class="alert alert-warning mt-5">
+            <h4>Acceso No Autorizado</h4>
+            <p>Solo los administradores pueden crear usuarios con roles privilegiados.</p>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-primary" @onclick="@(() => Navigation.NavigateTo("/"))">
+                Volver al Inicio
+            </button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        <div class="row justify-content-center mt-4">
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white" style="text-align: center;">
+                        <h3 class="mb-0">Crear Usuario Privilegiado</h3>
+                        <small>Crear cuenta de administrador o veterinario</small>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger alert-dismissible fade show">
+                                <strong>Error:</strong> @errorMessage
+                                <button type="button" class="btn-close" @onclick="@(() => errorMessage = null)"></button>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(successMessage))
+                        {
+                            <div class="alert alert-success alert-dismissible fade show">
+                                @successMessage
+                                <button type="button" class="btn-close" @onclick="@(() => successMessage = null)"></button>
+                            </div>
+                        }
+
+                        <EditForm Model="@createModel" OnValidSubmit="HandleSubmit">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary class="text-danger" />
+
+                            <div class="mb-3">
+                                <label class="form-label">Tipo de Cuenta *</label>
+                                <InputSelect @bind-Value="createModel.Role" class="form-select">
+                                    <option value="veterinario">Veterinario</option>
+                                    <option value="admin">Administrador</option>
+                                </InputSelect>
+                                <small class="text-muted">
+                                    Selecciona el rol que tendrá el nuevo usuario en el sistema.
+                                </small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Usuario *</label>
+                                <InputText @bind-Value="createModel.Username" class="form-control" placeholder="Nombre de usuario" />
+                                <ValidationMessage For="@(() => createModel.Username)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Contraseña *</label>
+                                <InputText type="password" @bind-Value="createModel.Password" class="form-control" placeholder="Mínimo 6 caracteres" />
+                                <ValidationMessage For="@(() => createModel.Password)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Nombre Completo *</label>
+                                <InputText @bind-Value="createModel.Nombre" class="form-control" placeholder="Nombre completo" />
+                                <ValidationMessage For="@(() => createModel.Nombre)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Edad *</label>
+                                <InputNumber @bind-Value="createModel.Edad" class="form-control" placeholder="Edad" />
+                                <ValidationMessage For="@(() => createModel.Edad)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Teléfono *</label>
+                                <InputText @bind-Value="createModel.Telefono" class="form-control" placeholder="+57 123 456 7890" />
+                                <ValidationMessage For="@(() => createModel.Telefono)" />
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg" disabled="@isCreating">
+                                    @if (isCreating)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                        <span>Creando usuario...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Crear Usuario</span>
+                                    }
+                                </button>
+                                <button type="button" class="btn btn-secondary" @onclick="Cancel">
+                                    Cancelar
+                                </button>
+                            </div>
+                        </EditForm>
+
+                        <div class="alert alert-info mt-3 mb-0">
+                            <small>
+                                <strong>Nota:</strong> Los usuarios creados aquí tendrán acceso privilegiado al sistema.
+                                Los clientes deben registrarse desde la página de registro pública.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private UsuarioPrivilegedCreate createModel = new();
+    private bool isCreating;
+    private string? errorMessage;
+    private string? successMessage;
+
+    private async Task HandleSubmit()
+    {
+        isCreating = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var createdUser = await UsuarioService.CreatePrivilegedUserAsync(createModel);
+            
+            if (createdUser != null)
+            {
+                successMessage = $"Usuario '{createdUser.Username}' creado exitosamente como {GetRoleDisplay(createdUser.Role)}.";
+                
+                // Limpiar formulario
+                createModel = new UsuarioPrivilegedCreate { Role = createModel.Role };
+                
+                // Redirigir después de 2 segundos
+                await Task.Delay(2000);
+                Navigation.NavigateTo("/usuarios");
+            }
+            else
+            {
+                errorMessage = "Error al crear el usuario. Verifica que el nombre de usuario no esté en uso.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al crear el usuario: " + ex.Message;
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/usuarios");
+    }
+
+    private string GetRoleDisplay(string role)
+    {
+        return role switch
+        {
+            "admin" => "Administrador",
+            "veterinario" => "Veterinario",
+            _ => role
+        };
+    }
+}

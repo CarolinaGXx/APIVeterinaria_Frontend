@@ -1,0 +1,467 @@
+@page "/vacunas/{id}"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject VacunaService VacunaService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Detalle de Vacuna - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a> para ver esta vacuna</h3>
+    </div>
+}
+else if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+        <p class="mt-2">Cargando información de la vacuna...</p>
+    </div>
+}
+else if (errorMessage != null)
+{
+    <div class="container">
+        <div class="alert alert-danger" role="alert">
+            @errorMessage
+        </div>
+        <button class="btn btn-secondary" @onclick="GoBack">← Volver</button>
+    </div>
+}
+else if (vacuna == null)
+{
+    <div class="text-center py-5">
+        <h3>Vacuna no encontrada</h3>
+        <button class="btn btn-primary mt-3" @onclick="GoBack">← Volver a Vacunas</button>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <button class="btn btn-outline-secondary mb-2" @onclick="GoBack">
+                    ← Volver
+                </button>
+                <h2>💉 Registro de Vacunación</h2>
+                <p class="text-muted">Información completa de la vacuna</p>
+            </div>
+            <div>
+                @if (!IsOwner() && AuthService.CurrentUser?.Role == "veterinario")
+                {
+                    <div class="alert alert-info me-3" style="display: inline-block; margin-bottom: 0;">
+                        <small>Esta vacuna fue aplicada por <strong>@vacuna.VeterinarioNombre</strong></small>
+                    </div>
+                }
+                @if (CanEditVacuna())
+                {
+                    <button class="btn btn-warning me-2" @onclick="EditVacuna">
+                        Editar
+                    </button>
+                }
+                @if (CanDeleteVacuna())
+                {
+                    <button class="btn btn-danger" @onclick="DeleteVacuna">
+                        Eliminar
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Información de la Vacuna -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Información de la Vacuna</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-borderless">
+                            <tbody>
+                                <tr>
+                                    <th width="40%">Tipo de Vacuna:</th>
+                                    <td>
+                                        <span class="badge @GetTipoVacunaBadgeClass() fs-6">
+                                            @GetTipoVacunaDisplay()
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Lote:</th>
+                                    <td>
+                                        <strong>@vacuna.LoteVacuna</strong>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Veterinario Username:</th>
+                                    <td>
+                                        <strong>@vacuna.Veterinario</strong>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Veterinario Nombre:</th>
+                                    <td>
+                                        <strong>@vacuna.VeterinarioNombre</strong>
+                                    </td>
+                                </tr>
+                                @if (!string.IsNullOrEmpty(vacuna.VeterinarioTelefono))
+                                {
+                                    <tr>
+                                        <th>Veterinario Teléfono:</th>
+                                        <td>
+                                            <strong>@vacuna.VeterinarioTelefono</strong>
+                                        </td>
+                                    </tr>
+                                }
+                                <tr>
+                                    <th>Fecha de Aplicación:</th>
+                                    <td>
+                                        <strong>@vacuna.FechaAplicacion.ToString("dd/MM/yyyy")</strong>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Próxima Dosis:</th>
+                                    <td>
+                                        @if (vacuna.ProximaDosis.HasValue)
+                                        {
+                                            var diasRestantes = (vacuna.ProximaDosis.Value - DateTime.Now).Days;
+                                            var alertClass = diasRestantes < 0 ? "text-danger" : 
+                                                           diasRestantes <= 7 ? "text-warning" : 
+                                                           diasRestantes <= 30 ? "text-info" : "text-success";
+                                            
+                                            <span class="@alertClass fw-bold">
+                                                @vacuna.ProximaDosis.Value.ToString("dd/MM/yyyy")
+                                                @if (diasRestantes < 0)
+                                                {
+                                                    <span> Vencida</span>
+                                                }
+                                                else if (diasRestantes <= 7)
+                                                {
+                                                    <span> En @diasRestantes días</span>
+                                                }
+                                                else if (diasRestantes <= 30)
+                                                {
+                                                    <span> En @diasRestantes días</span>
+                                                }
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <strong>No requiere refuerzo</strong>
+                                        }
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        @if (vacuna.ProximaDosis.HasValue)
+                        {
+                            var diasRestantes = (vacuna.ProximaDosis.Value - DateTime.Now).Days;
+                            
+                            @if (diasRestantes < 0)
+                            {
+                                <div class="alert alert-danger">
+                                    <strong>Atención:</strong> La próxima dosis está vencida. Contacta al veterinario.
+                                </div>
+                            }
+                            else if (diasRestantes <= 7)
+                            {
+                                <div class="alert alert-warning">
+                                    <strong>Recordatorio:</strong> La próxima dosis es en menos de una semana.
+                                </div>
+                            }
+                            else if (diasRestantes <= 30)
+                            {
+                                <div class="alert alert-info">
+                                    <strong>Próximamente:</strong> La próxima dosis es en @diasRestantes días.
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información de la Mascota y Propietario -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Mascota y Propietario</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-borderless">
+                            <tbody>
+                                <tr>
+                                    <th width="40%">Mascota:</th>
+                                    <td>
+                                        <strong>@vacuna.MascotaNombre</strong>
+                                        <br />
+                                        <a href="/mascotas/@vacuna.IdMascota" class="btn btn-sm btn-outline-primary mt-1">
+                                            Ver Perfil
+                                        </a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Propietario Usuario:</th>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(vacuna.PropietarioUsername))
+                                        {
+                                            <strong>@vacuna.PropietarioUsername</strong>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Propietario Nombre:</th>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(vacuna.PropietarioNombre))
+                                        {
+                                            <strong>@vacuna.PropietarioNombre</strong>
+                                        }
+                                    </td>
+                                </tr>
+                                @if (!string.IsNullOrEmpty(vacuna.PropietarioTelefono))
+                                {
+                                    <tr>
+                                        <th>Teléfono:</th>
+                                        <td>@vacuna.PropietarioTelefono</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        <div class="alert alert-info mt-3">
+                            <strong>Información:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>Mantén el calendario de vacunación al día</li>
+                                <li>Consulta con tu veterinario ante dudas</li>
+                                <li>Guarda el certificado de vacunación</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información Adicional -->
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">Información sobre la Vacuna</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-12">
+                                @{
+                                    var infoVacuna = GetInfoVacuna();
+                                }
+                                <h6>@infoVacuna.Nombre</h6>
+                                <p>@infoVacuna.Descripcion</p>
+                                <p class="mb-0"><strong>Protege contra:</strong> @infoVacuna.Proteccion</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private Vacuna? vacuna;
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadVacuna();
+    }
+
+    private async Task LoadVacuna()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            vacuna = await VacunaService.GetVacunaAsync(Id);
+            
+            if (vacuna == null)
+            {
+                errorMessage = "Vacuna no encontrada";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar la vacuna: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void EditVacuna()
+    {
+        Navigation.NavigateTo($"/vacunas/{Id}/editar");
+    }
+
+    private async Task DeleteVacuna()
+    {
+        if (!CanDeleteVacuna())
+        {
+            errorMessage = "No tienes permisos para eliminar esta vacuna.";
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "¿Estás seguro de que deseas eliminar este registro de vacunación?"))
+        {
+            return;
+        }
+
+        try
+        {
+            var success = await VacunaService.DeleteVacunaAsync(Id);
+            if (success)
+            {
+                Navigation.NavigateTo("/vacunas");
+            }
+            else
+            {
+                errorMessage = "Error al eliminar la vacuna.";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al eliminar: " + ex.Message;
+        }
+    }
+
+    private bool IsOwner()
+    {
+        if (vacuna == null) return false;
+        
+        var currentUsername = AuthService.CurrentUser?.Username;
+        return vacuna.Veterinario == currentUsername;
+    }
+
+    private bool CanEditVacuna()
+    {
+        var role = AuthService.CurrentUser?.Role;
+        
+        if (role == "admin") return true;
+        if (role == "veterinario") return IsOwner();
+        
+        return false;
+    }
+
+    private bool CanDeleteVacuna()
+    {
+        var role = AuthService.CurrentUser?.Role;
+        
+        if (role == "admin") return true;        
+        return false;
+    }
+
+    private string GetTipoVacunaBadgeClass()
+    {
+        return vacuna?.TipoVacuna switch
+        {
+            "rabia" => "bg-danger",
+            "parvovirus" => "bg-warning text-dark",
+            "moquillo" => "bg-info",
+            "leucemia_felina" => "bg-primary",
+            "triple_felina" => "bg-success",
+            "newcastle" => "bg-secondary",
+            _ => "bg-secondary"
+        };
+    }
+
+    private string GetTipoVacunaDisplay()
+    {
+        return vacuna?.TipoVacuna.Replace("_", " ").ToUpper() ?? "";
+    }
+
+    private (string Nombre, string Descripcion, string Proteccion) GetInfoVacuna()
+    {
+        return vacuna?.TipoVacuna switch
+        {
+            "rabia" => (
+                "Vacuna Antirrábica",
+                "Vacuna esencial que previene la rabia, una enfermedad viral mortal transmitida por mordeduras.",
+                "Rabia"
+            ),
+            "parvovirus" => (
+                "Vacuna contra Parvovirus",
+                "Protege contra el parvovirus canino, una enfermedad gastrointestinal severa.",
+                "Parvovirus canino"
+            ),
+            "moquillo" => (
+                "Vacuna contra Moquillo",
+                "Previene el moquillo canino, una enfermedad viral altamente contagiosa y potencialmente fatal.",
+                "Moquillo canino"
+            ),
+            "leucemia_felina" => (
+                "Vacuna contra Leucemia Felina (FeLV)",
+                "Protege contra el virus de la leucemia felina, que debilita el sistema inmunológico.",
+                "Leucemia Felina (FeLV)"
+            ),
+            "triple_felina" => (
+                "Vacuna Triple Felina",
+                "Protección combinada contra rinotraqueitis, calicivirus y panleucopenia felina.",
+                "Rinotraqueitis, Calicivirus, Panleucopenia"
+            ),
+            "newcastle" => (
+                "Vacuna Newcastle",
+                "Previene la enfermedad de Newcastle en aves, una infección respiratoria viral.",
+                "Enfermedad de Newcastle"
+            ),
+            _ => (
+                "Información no disponible",
+                "No se encontró información detallada sobre este tipo de vacuna.",
+                "N/A"
+            )
+        };
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/vacunas");
+    }
+}

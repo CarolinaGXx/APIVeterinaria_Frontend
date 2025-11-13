@@ -1,0 +1,474 @@
+@page "/recetas/{Id}"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject RecetaService RecetaService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Detalle Receta - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a></h3>
+    </div>
+}
+else if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+        <p class="mt-3">Cargando receta...</p>
+    </div>
+}
+else if (receta == null)
+{
+    <div class="alert alert-danger">
+        Receta no encontrada
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        @if (receta.IsDeleted)
+        {
+            <div class="alert alert-danger" role="alert">
+                <strong>Esta receta ha sido eliminada</strong>
+                <p class="mb-0">La receta no está activa en el sistema.</p>
+            </div>
+        }
+        
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                @successMessage
+                <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+            </div>
+        }
+        
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @errorMessage
+                <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+            </div>
+        }
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <button class="btn btn-outline-secondary mb-2" @onclick="GoBack">
+                    ← Volver
+                </button>
+                <h2 class="@(receta.IsDeleted ? "text-muted text-decoration-line-through" : "")">
+                    Receta Médica
+                </h2>
+                <p class="text-muted">Prescripción de medicamentos y tratamiento</p>
+            </div>
+            <div>
+                @if (!IsOwner() && AuthService.CurrentUser?.Role == "veterinario")
+                {
+                    <div class="alert alert-info me-3" style="display: inline-block; margin-bottom: 0;">
+                        <small>Esta receta fue emitida por <strong>@receta.VeterinarioNombre</strong></small>
+                    </div>
+                }
+                @if (!receta.IsDeleted)
+                {
+                    @if (CanEditReceta())
+                    {
+                        <button class="btn btn-warning me-2" @onclick="EditReceta">
+                            Editar
+                        </button>
+                    }
+                    @if (CanDeleteReceta())
+                    {
+                        <button class="btn btn-danger" @onclick="DeleteReceta">
+                            Eliminar
+                        </button>
+                    }
+                }
+                else
+                {
+                    @if (CanRestoreReceta())
+                    {
+                        <button class="btn btn-success" @onclick="RestoreReceta">
+                            Restaurar
+                        </button>
+                    }
+                }
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Información General -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100" style="border-left: 4px solid #17a2b8">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Información General</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-borderless">
+                            <tbody>
+                                <tr>
+                                    <th style="width: 40%;">ID Receta:</th>
+                                    <td><code>@receta.IdReceta.Substring(0, 8)...</code></td>
+                                </tr>
+                                <tr>
+                                    <th>Fecha Emisión:</th>
+                                    <td>@receta.FechaEmision.ToString("dd/MM/yyyy HH:mm")</td>
+                                </tr>
+                                <tr>
+                                    <th>Veterinario Username:</th>
+                                    <td>@receta.Veterinario</td>
+                                </tr>
+                                <tr>
+                                    <th>Veterinario Nombre:</th>
+                                    <td>@receta.VeterinarioNombre</td>
+                                </tr>
+                                @if (!string.IsNullOrEmpty(receta.VeterinarioTelefono))
+                                {
+                                    <tr>
+                                        <th>Veterinario Teléfono:</th>
+                                        <td>@receta.VeterinarioTelefono</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información del Paciente -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">🐾 Información del Paciente</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-borderless">
+                            <tbody>
+                                <tr>
+                                    <th style="width: 40%;">Mascota:</th>
+                                    <td><strong>🐾 @receta.MascotaNombre</strong></td>
+                                </tr>
+                                @if (!string.IsNullOrEmpty(receta.MascotaTipo))
+                                {
+                                    <tr>
+                                        <th>Tipo:</th>
+                                        <td>@GetTipoMascotaDisplay(receta.MascotaTipo)</td>
+                                    </tr>
+                                }
+                                <tr>
+                                    <th>Propietario Usuario:</th>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(receta.PropietarioUsername))
+                                        {
+                                            <strong>@receta.PropietarioUsername</strong>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Propietario Nombre:</th>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(receta.PropietarioNombre))
+                                        {
+                                            <strong>@receta.PropietarioNombre</strong>
+                                        }
+                                    </td>
+                                </tr>
+                                @if (!string.IsNullOrEmpty(receta.PropietarioTelefono))
+                                {
+                                    <tr>
+                                        <th>Teléfono:</th>
+                                        <td>@receta.PropietarioTelefono</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Indicaciones Generales -->
+            @if (!string.IsNullOrEmpty(receta.Indicaciones))
+            {
+                <div class="col-md-12 mb-4">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Indicaciones Generales</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-0" style="white-space: pre-line;">@receta.Indicaciones</p>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Medicamentos Prescritos -->
+            <div class="col-md-12 mb-4">
+                <div class="card border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">Medicamentos Prescritos</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (receta.Lineas == null || !receta.Lineas.Any())
+                        {
+                            <div class="alert alert-info mb-0">
+                                <p class="mb-0">No hay medicamentos prescritos en esta receta.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 5%;">#</th>
+                                            <th style="width: 30%;">Medicamento</th>
+                                            <th style="width: 20%;">Dosis</th>
+                                            <th style="width: 25%;">Frecuencia</th>
+                                            <th style="width: 20%;">Duración</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @for (int i = 0; i < receta.Lineas.Count; i++)
+                                        {
+                                            var linea = receta.Lineas[i];
+                                            <tr>
+                                                <td><strong>@(i + 1)</strong></td>
+                                                <td>
+                                                    <strong>@linea.Medicamento</strong>
+                                                </td>
+                                                <td>
+                                                    @if (!string.IsNullOrEmpty(linea.Dosis))
+                                                    {
+                                                        <span>@linea.Dosis</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">-</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @if (!string.IsNullOrEmpty(linea.Frecuencia))
+                                                    {
+                                                        <span>@linea.Frecuencia</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">-</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @if (!string.IsNullOrEmpty(linea.Duracion))
+                                                    {
+                                                        <span>@linea.Duracion</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">-</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="alert alert-warning mt-3 mb-0">
+                                <strong>Importante:</strong> Siga estrictamente las indicaciones del veterinario. 
+                                No modifique dosis o frecuencias sin consultar previamente.
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private Receta? receta;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadReceta();
+    }
+
+    private async Task LoadReceta()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            receta = await RecetaService.GetRecetaAsync(Id);
+            
+            if (receta == null)
+            {
+                errorMessage = "Receta no encontrada";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar la receta: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task DeleteReceta()
+    {
+        if (!CanDeleteReceta())
+        {
+            errorMessage = "No tienes permisos para eliminar esta receta.";
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "¿Estás seguro de que deseas eliminar esta receta?"))
+        {
+            return;
+        }
+
+        try
+        {
+            if (await RecetaService.DeleteRecetaAsync(Id))
+            {
+                Navigation.NavigateTo("/recetas");
+            }
+            else
+            {
+                errorMessage = "Error al eliminar la receta";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task RestoreReceta()
+    {
+        if (!CanRestoreReceta())
+        {
+            errorMessage = "No tienes permisos para restaurar esta receta.";
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"¿Estás seguro de que deseas restaurar esta receta?"))
+        {
+            return;
+        }
+
+        try
+        {
+            if (await RecetaService.RestoreRecetaAsync(Id))
+            {
+                await LoadReceta();
+                successMessage = "Receta restaurada exitosamente";
+            }
+            else
+            {
+                errorMessage = "Error al restaurar la receta";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private void EditReceta()
+    {
+        Navigation.NavigateTo($"/recetas/{Id}/editar");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/recetas");
+    }
+
+    private bool IsOwner()
+    {
+        if (receta == null) return false;
+        
+        var currentUsername = AuthService.CurrentUser?.Username;
+        return receta.Veterinario == currentUsername;
+    }
+
+    private bool CanEditReceta()
+    {
+        if (receta == null) return false;
+        
+        var role = AuthService.CurrentUser?.Role;
+        
+        // Admin puede editar cualquier receta
+        if (role == "admin")
+            return true;
+        
+        // Veterinario solo puede editar sus propias recetas
+        if (role == "veterinario")
+            return IsOwner();
+        
+        return false;
+    }
+
+    private bool CanDeleteReceta()
+    {
+        if (receta == null) return false;
+        
+        var role = AuthService.CurrentUser?.Role;
+        
+        // Admin puede eliminar cualquier receta
+        if (role == "admin")
+            return true;
+        
+        // Veterinario solo puede eliminar sus propias recetas
+        if (role == "veterinario")
+            return IsOwner();
+        
+        return false;
+    }
+
+    private bool CanRestoreReceta()
+    {
+        if (receta == null) return false;
+        
+        var role = AuthService.CurrentUser?.Role;
+        var username = AuthService.CurrentUser?.Username;
+        
+        // Admin puede restaurar cualquier receta
+        if (role == "admin")
+            return true;
+        
+        // Veterinario solo puede restaurar sus propias recetas
+        if (role == "veterinario" && receta.Veterinario == username)
+            return true;
+        
+        return false;
+    }
+
+    private string GetTipoMascotaDisplay(string tipo)
+    {
+        return tipo switch
+        {
+            "perro" => "🐶 Perro",
+            "gato" => "🐱 Gato",
+            "ave" => "🦜 Ave",
+            _ => tipo
+        };
+    }
+}

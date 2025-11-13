@@ -1,0 +1,486 @@
+@page "/facturas/{Id}"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject FacturaService FacturaService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Detalle Factura - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a></h3>
+    </div>
+}
+else if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+        <p class="mt-3">Cargando factura...</p>
+    </div>
+}
+else if (factura == null)
+{
+    <div class="alert alert-danger">
+        Factura no encontrada
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        @if (factura.IsDeleted || factura.Estado == "anulada")
+        {
+            <div class="alert alert-danger" role="alert">
+                <strong>Esta factura ha sido anulada</strong>
+                <p class="mb-0">La factura no es válida para efectos contables o tributarios.</p>
+            </div>
+        }
+        
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                @successMessage
+                <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+            </div>
+        }
+        
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @errorMessage
+                <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+            </div>
+        }
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <button class="btn btn-outline-secondary mb-2" @onclick="GoBack">
+                    ← Volver
+                </button>
+                <h2 class="@(factura.IsDeleted || factura.Estado == "anulada" ? "text-muted text-decoration-line-through" : "")">
+                    Factura @factura.NumeroFactura
+                </h2>
+                <p class="text-muted">Información completa de la factura</p>
+            </div>
+            <div>
+                @if (factura.Estado == "pendiente" && !factura.IsDeleted)
+                {
+                    @if (CanMarcarComoPagada())
+                    {
+                        <button class="btn btn-success me-2" @onclick="MarcarComoPagada" disabled="@isProcessing">
+                            @if (isProcessing)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Marcar como Pagada
+                        </button>
+                    }
+                    @if (CanEditFactura())
+                    {
+                        <button class="btn btn-warning me-2" @onclick="EditFactura">
+                            Editar
+                        </button>
+                    }
+                    @if (CanAnularFactura())
+                    {
+                        <button class="btn btn-danger" @onclick="AnularFactura" disabled="@isProcessing">
+                            Anular
+                        </button>
+                    }
+                }
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Información General -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100" style="border-left: 4px solid @GetEstadoBorderColor()">
+                    <div class="card-header d-flex justify-content-between align-items-center" style="background-color: @GetEstadoBgColor();">
+                        <h5 class="mb-0 text-white">Información General</h5>
+                        <span class="badge bg-light text-dark">@factura.Estado.ToUpper()</span>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-borderless">
+                            <tbody>
+                                <tr>
+                                    <th style="width: 40%;">Número:</th>
+                                    <td><strong>@factura.NumeroFactura</strong></td>
+                                </tr>
+                                <tr>
+                                    <th>Fecha Emisión:</th>
+                                    <td>@factura.FechaFactura.ToString("dd/MM/yyyy HH:mm")</td>
+                                </tr>
+                                <tr>
+                                    <th>Tipo de Servicio:</th>
+                                    <td>@GetTipoServicioDisplay(factura.TipoServicio)</td>
+                                </tr>
+                                <tr>
+                                    <th>Veterinario Username:</th>
+                                    <td>@factura.Veterinario</td>
+                                </tr>
+                                <tr>
+                                    <th>Veterinario Nombre:</th>
+                                    <td>@factura.VeterinarioNombre</td>
+                                </tr>
+                                @if (!string.IsNullOrEmpty(factura.VeterinarioTelefono))
+                                {
+                                    <tr>
+                                        <th>Veterinario Teléfono:</th>
+                                        <td>@factura.VeterinarioTelefono</td>
+                                    </tr>
+                                }
+                                <tr>
+                                    <th>Estado:</th>
+                                    <td>
+                                        <span class="badge bg-@GetEstadoBadgeColor()">
+                                            @factura.Estado.ToUpper()
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información del Cliente -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Información del Cliente</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-borderless">
+                            <tbody>
+                                <tr>
+                                    <th style="width: 40%;">Mascota:</th>
+                                    <td><strong>@factura.MascotaNombre</strong></td>
+                                </tr>
+                                @if (!string.IsNullOrEmpty(factura.MascotaTipo))
+                                {
+                                    <tr>
+                                        <th>Tipo:</th>
+                                        <td>@GetTipoMascotaDisplay(factura.MascotaTipo)</td>
+                                    </tr>
+                                }
+                                <tr>
+                                    <th>Propietario Usuario:</th>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(factura.PropietarioUsername))
+                                        {
+                                            <strong>@factura.PropietarioUsername</strong>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Propietario Nombre:</th>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(factura.PropietarioNombre))
+                                        {
+                                            <strong>@factura.PropietarioNombre</strong>
+                                        }
+                                    </td>
+                                </tr>
+                                @if (!string.IsNullOrEmpty(factura.PropietarioTelefono))
+                                {
+                                    <tr>
+                                        <th>Teléfono:</th>
+                                        <td>@factura.PropietarioTelefono</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Descripción del Servicio -->
+            <div class="col-md-12 mb-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Descripción del Servicio</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0" style="white-space: pre-line;">@factura.Descripcion</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Desglose de Costos -->
+            <div class="col-md-12 mb-4">
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Desglose de Costos</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-striped">
+                            <tbody>
+                                <tr>
+                                    <th style="width: 70%;">Valor del Servicio</th>
+                                    <td class="text-end"><strong>$@factura.ValorServicio.ToString("N2")</strong></td>
+                                </tr>
+                                <tr>
+                                    <th>IVA</th>
+                                    <td class="text-end"><strong>$@factura.Iva.ToString("N2")</strong></td>
+                                </tr>
+                                @if (factura.Descuento > 0)
+                                {
+                                    <tr class="table-warning">
+                                        <th>Descuento</th>
+                                        <td class="text-end"><strong>- $@factura.Descuento.ToString("N2")</strong></td>
+                                    </tr>
+                                }
+                                <tr class="table-success">
+                                    <th class="fs-4">TOTAL A PAGAR</th>
+                                    <td class="text-end fs-3"><strong class="text-success">$@factura.Total.ToString("N2")</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private Factura? factura;
+    private bool isLoading = true;
+    private bool isProcessing = false;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadFactura();
+    }
+
+    private async Task LoadFactura()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            factura = await FacturaService.GetFacturaAsync(Id);
+            
+            if (factura == null)
+            {
+                errorMessage = "Factura no encontrada";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar la factura: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task MarcarComoPagada()
+    {
+        if (!CanMarcarComoPagada())
+        {
+            errorMessage = "No tienes permisos para marcar como pagada esta factura.";
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"¿Confirmar que la factura {factura?.NumeroFactura} ha sido pagada?"))
+        {
+            return;
+        }
+
+        isProcessing = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var result = await FacturaService.MarcarComoPagadaAsync(Id);
+            if (result != null)
+            {
+                successMessage = "Factura marcada como pagada exitosamente";
+                await LoadFactura();
+            }
+            else
+            {
+                errorMessage = "Error al marcar como pagada la factura";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task AnularFactura()
+    {
+        if (!CanAnularFactura())
+        {
+            errorMessage = "No tienes permisos para anular esta factura.";
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"¿Estás seguro de que deseas ANULAR la factura {factura?.NumeroFactura}? Esta acción es definitiva."))
+        {
+            return;
+        }
+
+        isProcessing = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var result = await FacturaService.AnularFacturaAsync(Id);
+            if (result)
+            {
+                successMessage = "Factura anulada exitosamente";
+                await LoadFactura();
+            }
+            else
+            {
+                errorMessage = "No se pudo anular la factura";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void EditFactura()
+    {
+        Navigation.NavigateTo($"/facturas/{Id}/editar");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/facturas");
+    }
+
+    private bool CanEditFactura()
+    {
+        if (factura == null || factura.Estado != "pendiente") return false;
+        
+        var role = AuthService.CurrentUser?.Role;
+        var username = AuthService.CurrentUser?.Username;
+        
+        // Admin puede editar cualquier factura pendiente
+        if (role == "admin")
+            return true;
+        
+        // Veterinario solo puede editar sus propias facturas pendientes
+        if (role == "veterinario" && factura.Veterinario == username)
+            return true;
+        
+        return false;
+    }
+
+    private bool CanMarcarComoPagada()
+    {
+        if (factura == null || factura.Estado != "pendiente") return false;
+        
+        var role = AuthService.CurrentUser?.Role;
+        
+        // Admin siempre puede marcar como pagada
+        if (role == "admin")
+            return true;
+        
+        // Veterinario puede marcar como pagada sus propias facturas
+        var username = AuthService.CurrentUser?.Username;
+        if (role == "veterinario" && factura.Veterinario == username)
+            return true;
+        
+        return false;
+    }
+
+    private bool CanAnularFactura()
+    {
+        if (factura == null) return false;
+        
+        var role = AuthService.CurrentUser?.Role;
+        
+        // Solo admin puede anular facturas
+        return role == "admin";
+    }
+
+    private string GetEstadoBadgeColor()
+    {
+        return factura?.Estado switch
+        {
+            "pendiente" => "warning",
+            "pagada" => "success",
+            "anulada" => "danger",
+            _ => "secondary"
+        };
+    }
+
+    private string GetEstadoBorderColor()
+    {
+        return factura?.Estado switch
+        {
+            "pendiente" => "#ffc107",
+            "pagada" => "#28a745",
+            "anulada" => "#dc3545",
+            _ => "#6c757d"
+        };
+    }
+
+    private string GetEstadoBgColor()
+    {
+        return factura?.Estado switch
+        {
+            "pendiente" => "#ffc107",
+            "pagada" => "#28a745",
+            "anulada" => "#dc3545",
+            _ => "#6c757d"
+        };
+    }
+
+    private string GetTipoServicioDisplay(string tipo)
+    {
+        return tipo switch
+        {
+            "consulta_general" => "Consulta General",
+            "vacunacion" => "Vacunación",
+            "cirugia" => "Cirugía",
+            "emergencia" => "Emergencia",
+            "control" => "Control",
+            "desparasitacion" => "Desparasitación",
+            _ => tipo
+        };
+    }
+
+    private string GetTipoMascotaDisplay(string tipo)
+    {
+        return tipo switch
+        {
+            "perro" => "🐶 Perro",
+            "gato" => "🐱 Gato",
+            "ave" => "🦜 Ave",
+            _ => tipo
+        };
+    }
+}

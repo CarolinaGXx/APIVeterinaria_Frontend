@@ -1,0 +1,157 @@
+is_global = true
+build_property.EnableAotAnalyzer = 
+build_property.EnableSingleFileAnalyzer = 
+build_property.EnableTrimAnalyzer = false
+build_property.IncludeAllContentForSelfExtract = 
+build_property.TargetFramework = net9.0
+build_property.TargetPlatformMinVersion = 
+build_property.UsingMicrosoftNETSdkWeb = 
+build_property.ProjectTypeGuids = 
+build_property.InvariantGlobalization = false
+build_property.PlatformNeutralAssembly = 
+build_property.EnforceExtendedAnalyzerRules = 
+build_property._SupportedPlatformList = browser
+build_property.RootNamespace = VeterinariaApp
+build_property.RootNamespace = VeterinariaApp
+build_property.ProjectDir = C:\Users\santi\Downloads\APIVeterinaria_Parcial1-main\frontend\
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = false
+build_property.RazorLangVersion = 9.0
+build_property.SupportLocalizedComponentNames = 
+build_property.GenerateRazorMetadataSourceChecksumAttributes = 
+build_property.MSBuildProjectDirectory = C:\Users\santi\Downloads\APIVeterinaria_Parcial1-main\frontend
+build_property._RazorSourceGeneratorDebug = 
+build_property.EffectiveAnalysisLevelStyle = 9.0
+build_property.EnableCodeStyleSeverity = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/App.razor]
+build_metadata.AdditionalFiles.TargetPath = QXBwLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/CitaCrear.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQ2l0YUNyZWFyLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/CitaDetalle.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQ2l0YURldGFsbGUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/CitaEditar.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQ2l0YUVkaXRhci5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/Citas.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQ2l0YXMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/FacturaCrear.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcRmFjdHVyYUNyZWFyLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/FacturaDetalle.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcRmFjdHVyYURldGFsbGUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/FacturaEditar.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcRmFjdHVyYUVkaXRhci5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/Facturas.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcRmFjdHVyYXMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/Login.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcTG9naW4ucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/MascotaCrear.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcTWFzY290YUNyZWFyLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/MascotaDetalle.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcTWFzY290YURldGFsbGUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/MascotaEditar.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcTWFzY290YUVkaXRhci5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/Mascotas.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcTWFzY290YXMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/MascotasBuscar.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcTWFzY290YXNCdXNjYXIucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/Perfil.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUGVyZmlsLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/RecetaCrear.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUmVjZXRhQ3JlYXIucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/RecetaDetalle.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUmVjZXRhRGV0YWxsZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/RecetaEditar.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUmVjZXRhRWRpdGFyLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/Recetas.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUmVjZXRhcy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/Register.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUmVnaXN0ZXIucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/UsuarioCrear.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcVXN1YXJpb0NyZWFyLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/UsuarioDetalle.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcVXN1YXJpb0RldGFsbGUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/Usuarios.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcVXN1YXJpb3MucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/VacunaCrear.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcVmFjdW5hQ3JlYXIucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/VacunaDetalle.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcVmFjdW5hRGV0YWxsZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/VacunaEditar.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcVmFjdW5hRWRpdGFyLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/Vacunas.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcVmFjdW5hcy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/Weather.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcV2VhdGhlci5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/_Imports.razor]
+build_metadata.AdditionalFiles.TargetPath = X0ltcG9ydHMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Layout/MainLayout.razor]
+build_metadata.AdditionalFiles.TargetPath = TGF5b3V0XE1haW5MYXlvdXQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = b-pgsko0y3ov
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Layout/NavMenu.razor]
+build_metadata.AdditionalFiles.TargetPath = TGF5b3V0XE5hdk1lbnUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = b-zva616iyi7
+
+[C:/Users/santi/Downloads/APIVeterinaria_Parcial1-main/frontend/Pages/Home.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcSG9tZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = b-ivki66pbw4

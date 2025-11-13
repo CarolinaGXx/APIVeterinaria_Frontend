@@ -1,0 +1,292 @@
+@page "/mascotas/buscar"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject MascotaService MascotaService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>Buscar Mascotas - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a></h3>
+    </div>
+}
+else if (!CanAccessSearch())
+{
+    <div class="container">
+        <div class="alert alert-warning mt-5">
+            <h4>Acceso No Autorizado</h4>
+            <p>Esta herramienta está disponible solo para veterinarios y administradores.</p>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-primary mt-3" @onclick="GoBack">← Volver</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Búsqueda de Mascotas</h2>
+        </div>
+
+        <!-- Buscador -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Buscar por nombre de mascota o usuario</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <input type="text" 
+                               class="form-control form-control-lg" 
+                               value="@searchTerm"
+                               @oninput="OnSearchInputChanged"
+                               placeholder="Escribe para buscar (nombre de mascota o usuario)..." 
+                               autofocus />
+                    </div>
+                    <div class="col-md-4 d-flex align-items-center">
+                        @if (isSearching)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Buscando...</span>
+                        }
+                        else if (!string.IsNullOrEmpty(searchTerm) && mascotas.Any())
+                        {
+                            <span class="text-success">Encontradas <strong>@mascotas.Count</strong> mascota(s)</span>
+                        }
+                        else if (!string.IsNullOrEmpty(searchTerm) && !mascotas.Any())
+                        {
+                            <span class="text-warning">No se encontraron mascotas</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">Escribe al menos 1 carácter para buscar</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resultados -->
+        @if (string.IsNullOrEmpty(searchTerm))
+        {
+            <div class="text-center py-5">
+                <div class="empty-state">
+                    <h1 style="font-size: 5rem;">🐾</h1>
+                    <h3>Comienza a buscar mascotas</h3>
+                    <p class="text-muted">Usa el buscador arriba para encontrar cualquier mascota en el sistema</p>
+                </div>
+            </div>
+        }
+        else if (isSearching)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Buscando...</span>
+                </div>
+                <p class="mt-2">Buscando mascotas...</p>
+            </div>
+        }
+        else if (!mascotas.Any())
+        {
+            <div class="text-center py-5">
+                <div class="empty-state">
+                    <h1 style="font-size: 5rem;">😿</h1>
+                    <h3>No se encontraron resultados</h3>
+                    <p class="text-muted">No hay mascotas que coincidan con "<strong>@searchTerm</strong>"</p>
+                    <p class="text-muted">Intenta con otro término de búsqueda</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="row">
+                @foreach (var mascota in mascotas)
+                {
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="card h-100 @(mascota.IsDeleted ? "border-danger" : "")">
+                            @if (mascota.IsDeleted)
+                            {
+                                <div class="card-header bg-danger text-white">
+                                    <small>Eliminada</small>
+                                </div>
+                            }
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <h5 class="card-title mb-1 @(mascota.IsDeleted ? "text-decoration-line-through text-muted" : "")">
+                                            @mascota.Nombre
+                                        </h5>
+                                        <small class="text-muted">@mascota.IdMascota</small>
+                                    </div>
+                                    <span class="badge bg-info">@GetTipoDisplay(mascota.Tipo)</span>
+                                </div>
+
+                                <div class="mb-2">
+                                    <strong>Raza:</strong> @(string.IsNullOrEmpty(mascota.Raza) ? "No especificada" : mascota.Raza)
+                                </div>
+
+                                @if (mascota.Edad > 0)
+                                {
+                                    <div class="mb-2">
+                                        <strong>Edad:</strong> @mascota.Edad años
+                                    </div>
+                                }
+
+                                @if (mascota.Peso > 0)
+                                {
+                                    <div class="mb-2">
+                                        <strong>Peso:</strong> @mascota.Peso kg
+                                    </div>
+                                }
+
+                                <hr />
+
+                                <div class="mb-2">
+                                    <strong>Propietario:</strong><br />
+                                    <small>@(mascota.PropietarioNombre ?? mascota.Propietario)</small>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(mascota.PropietarioTelefono))
+                                {
+                                    <div class="mb-2">
+                                        <strong>Teléfono:</strong><br />
+                                        <small>@mascota.PropietarioTelefono</small>
+                                    </div>
+                                }
+                            </div>
+                            <div class="card-footer bg-transparent">
+                                <button class="btn btn-primary btn-sm w-100" 
+                                        @onclick="() => ViewMascota(mascota.IdMascota)">
+                                    Ver Detalle Completo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <!-- Información de resultados -->
+            <div class="alert alert-info mt-3">
+                <strong>Mostrando @mascotas.Count resultado(s)</strong> para "<strong>@searchTerm</strong>"
+                @if (mascotas.Count >= 30)
+                {
+                    <br /><small>Se muestran máximo 30 resultados. Refina tu búsqueda para resultados más específicos.</small>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Mascota> mascotas = new();
+    private string searchTerm = "";
+    private bool isSearching;
+    private System.Threading.Timer? _searchTimer;
+
+    protected override Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+        }
+        else if (!CanAccessSearch())
+        {
+            // Redirect to home if not authorized
+            Navigation.NavigateTo("/");
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    private void OnSearchInputChanged(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? "";
+        
+        // Cancel previous timer
+        _searchTimer?.Dispose();
+        
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            mascotas.Clear();
+            StateHasChanged();
+            return;
+        }
+
+        // Debounce: wait 400ms after user stops typing
+        _searchTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await SearchMascotas();
+            });
+        }, null, 400, Timeout.Infinite);
+    }
+
+    private async Task SearchMascotas()
+    {
+        isSearching = true;
+        StateHasChanged();
+
+        try
+        {
+            var results = await MascotaService.SearchMascotasAsync(
+                searchTerm: searchTerm,
+                limit: 30,  // Show up to 30 results
+                includeDeleted: AuthService.CurrentUser?.Role == "admin"  // Admin can see deleted
+            );
+            
+            mascotas = results ?? new List<Mascota>();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            await AuthService.LogoutAsync();
+            Navigation.NavigateTo("/login", true);
+        }
+        catch (Exception)
+        {
+            mascotas.Clear();
+        }
+        finally
+        {
+            isSearching = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ViewMascota(string id)
+    {
+        Navigation.NavigateTo($"/mascotas/{id}");
+    }
+
+    private bool CanAccessSearch()
+    {
+        var role = AuthService.CurrentUser?.Role;
+        return role == "admin" || role == "veterinario";
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private string GetTipoDisplay(string tipo)
+    {
+        return tipo switch
+        {
+            "perro" => "🐕 Perro",
+            "gato" => "🐈 Gato",
+            "ave" => "🐦 Ave",
+            _ => tipo
+        };
+    }
+
+    public void Dispose()
+    {
+        _searchTimer?.Dispose();
+    }
+}

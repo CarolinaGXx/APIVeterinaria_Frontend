@@ -1,0 +1,348 @@
+@page "/mascotas"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject MascotaService MascotaService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Mascotas - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a> para ver las mascotas</h3>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>🐾 Mis Mascotas</h2>
+            <button class="btn btn-primary" @onclick="NavigateToCreate">
+                ➕ Nueva Mascota
+            </button>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+                <p class="mt-2">Cargando mascotas...</p>
+            </div>
+        }
+        else if (errorMessage != null)
+        {
+            <div class="alert alert-danger" role="alert">
+                @errorMessage
+            </div>
+        }
+        else if (mascotas == null || !mascotas.Any())
+        {
+            <div class="text-center py-5">
+                <div class="empty-state">
+                    <h1 style="font-size: 5rem;">🐶</h1>
+                    <h3>No tienes mascotas registradas</h3>
+                    <p class="text-muted">¡Comienza registrando a tu primera mascota!</p>
+                    <button class="btn btn-primary btn-lg mt-3" @onclick="NavigateToCreate">
+                        ➕ Registrar Mi Primera Mascota
+                    </button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="row">
+                @foreach (var mascota in mascotas)
+                {
+                    <div class="col-md-4 mb-3">
+                        <div class="card @(mascota.IsDeleted ? "border-danger" : "")">
+                            <div class="card-body">
+                                @if (mascota.IsDeleted)
+                                {
+                                    <span class="badge bg-danger position-absolute top-0 end-0 m-2">Eliminada</span>
+                                }
+                                <h5 class="card-title @(mascota.IsDeleted ? "text-muted text-decoration-line-through" : "")">@mascota.Nombre</h5>
+                                <p class="text-muted mb-2">
+                                    <strong>Tipo:</strong> @mascota.Tipo<br />
+                                    <strong>Raza:</strong> @mascota.Raza
+                                </p>
+                                <p class="mb-1">
+                                    <strong>Edad:</strong> @mascota.Edad años<br />
+                                    <strong>Peso:</strong> @mascota.Peso kg
+                                </p>
+                                <div class="btn-group" role="group">
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewMascota(mascota.IdMascota)">
+                                        Ver
+                                    </button>
+                                    @if (!mascota.IsDeleted)
+                                    {
+                                        @if (CanEditMascota(mascota))
+                                        {
+                                            <button class="btn btn-sm btn-outline-warning" @onclick="() => EditMascota(mascota.IdMascota)">
+                                                Editar
+                                            </button>
+                                        }
+                                        @if (CanDeleteMascota(mascota))
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteMascota(mascota.IdMascota)">
+                                                Eliminar
+                                            </button>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        @if (CanRestoreMascota(mascota))
+                                        {
+                                            <button class="btn btn-sm btn-success" @onclick="() => RestoreMascota(mascota.IdMascota)">
+                                                Restaurar
+                                            </button>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (paginatedResponse != null && paginatedResponse.TotalPages > 1)
+            {
+                <nav aria-label="Paginación">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => LoadMascotas(currentPage - 1)">Anterior</button>
+                        </li>
+                        @for (int i = 1; i <= paginatedResponse.TotalPages; i++)
+                        {
+                            var pageNum = i;
+                            <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                                <button class="page-link" @onclick="() => LoadMascotas(pageNum)">@pageNum</button>
+                            </li>
+                        }
+                        <li class="page-item @(currentPage == paginatedResponse.TotalPages ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => LoadMascotas(currentPage + 1)">Siguiente</button>
+                        </li>
+                    </ul>
+                </nav>
+            }
+        }
+    </div>
+}
+
+@code {
+    private List<Mascota>? mascotas;
+    private PaginatedResponse<Mascota>? paginatedResponse;
+    private int currentPage = 1;
+    private bool isLoading;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            await LoadMascotas();
+        }
+    }
+
+    private async Task LoadMascotas(int page = 1)
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            currentPage = page;
+            // Siempre incluir mascotas eliminadas para mostrarlas con indicador visual
+            // Admin ve todas, cliente y veterinario ven solo las suyas
+            var role = AuthService.CurrentUser?.Role;
+            var propietarioFiltro = (role == "cliente" || role == "veterinario") 
+                ? AuthService.CurrentUser?.Username 
+                : null;
+            
+            paginatedResponse = await MascotaService.GetMascotasAsync(
+                page: currentPage,
+                pageSize: 9,
+                propietario: propietarioFiltro
+            );
+
+            mascotas = paginatedResponse?.Items ?? new List<Mascota>();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // Token expirado - redirigir al login
+            Console.WriteLine($"⚠️ Sesión expirada: {ex.Message}");
+            await AuthService.LogoutAsync();
+            Navigation.NavigateTo("/login", true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar mascotas: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ViewMascota(string id)
+    {
+        Navigation.NavigateTo($"/mascotas/{id}");
+    }
+
+    private void EditMascota(string id)
+    {
+        Navigation.NavigateTo($"/mascotas/{id}/editar");
+    }
+
+    private async Task DeleteMascota(string id)
+    {
+        var mascota = mascotas?.FirstOrDefault(m => m.IdMascota == id);
+        if (mascota == null || !CanDeleteMascota(mascota))
+        {
+            errorMessage = "No tienes permisos para eliminar esta mascota.";
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "¿Estás seguro de que deseas eliminar esta mascota?"))
+        {
+            return;
+        }
+
+        try
+        {
+            if (await MascotaService.DeleteMascotaAsync(id))
+            {
+                await LoadMascotas(currentPage);
+            }
+            else
+            {
+                errorMessage = "Error al eliminar la mascota.";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // Token expirado o sin permisos
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al eliminar: " + ex.Message;
+        }
+    }
+
+    private bool CanEditMascota(Mascota mascota)
+    {
+        var role = AuthService.CurrentUser?.Role;
+        var username = AuthService.CurrentUser?.Username;
+        
+        // Admin y veterinarios pueden editar todas
+        if (role == "admin" || role == "veterinario")
+            return true;
+        
+        // Clientes solo pueden editar sus propias mascotas
+        if (role == "cliente" && mascota.Propietario == username)
+            return true;
+        
+        return false;
+    }
+
+    private bool CanDeleteMascota(Mascota mascota)
+    {
+        var role = AuthService.CurrentUser?.Role;
+        var username = AuthService.CurrentUser?.Username;
+        
+        // Admin puede eliminar cualquier mascota
+        if (role == "admin")
+            return true;
+        
+        // Veterinarios pueden eliminar cualquier mascota
+        if (role == "veterinario")
+            return true;
+        
+        // Clientes pueden eliminar sus propias mascotas
+        if (role == "cliente" && mascota.Propietario == username)
+            return true;
+        
+        return false;
+    }
+
+    private bool CanRestoreMascota(Mascota mascota)
+    {
+        var role = AuthService.CurrentUser?.Role;
+        var username = AuthService.CurrentUser?.Username;
+        
+        // Admin puede restaurar cualquier mascota
+        if (role == "admin")
+            return true;
+        
+        // Veterinarios pueden restaurar cualquier mascota
+        if (role == "veterinario")
+            return true;
+        
+        // Clientes pueden restaurar sus propias mascotas
+        if (role == "cliente" && mascota.Propietario == username)
+            return true;
+        
+        return false;
+    }
+
+    private async Task RestoreMascota(string id)
+    {
+        var mascota = mascotas?.FirstOrDefault(m => m.IdMascota == id);
+        if (mascota == null || !CanRestoreMascota(mascota))
+        {
+            errorMessage = "No tienes permisos para restaurar esta mascota.";
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "¿Estás seguro de que deseas restaurar esta mascota?"))
+        {
+            return;
+        }
+
+        try
+        {
+            if (await MascotaService.RestoreMascotaAsync(id))
+            {
+                await LoadMascotas(currentPage);
+            }
+            else
+            {
+                errorMessage = "Error al restaurar la mascota.";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // Token expirado o sin permisos
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al restaurar: " + ex.Message;
+        }
+    }
+
+    private void NavigateToCreate()
+    {
+        Navigation.NavigateTo("/mascotas/crear");
+    }
+}

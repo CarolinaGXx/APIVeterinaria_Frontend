@@ -1,0 +1,592 @@
+@page "/citas/{id}"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject CitaService CitaService
+@inject RecetaService RecetaService
+@inject FacturaService FacturaService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Detalle de Cita - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a> para ver esta cita</h3>
+    </div>
+}
+else if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+        <p class="mt-2">Cargando información de la cita...</p>
+    </div>
+}
+else if (errorMessage != null)
+{
+    <div class="container">
+        <div class="alert alert-danger" role="alert">
+            @errorMessage
+        </div>
+        <button class="btn btn-secondary" @onclick="GoBack">← Volver</button>
+    </div>
+}
+else if (cita == null)
+{
+    <div class="text-center py-5">
+        <h3>Cita no encontrada</h3>
+        <button class="btn btn-primary mt-3" @onclick="GoBack">← Volver a Citas</button>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        @if (cita.IsDeleted || cita.Estado == "cancelada")
+        {
+            <div class="alert alert-danger" role="alert">
+                <strong>Esta cita ha sido cancelada</strong>
+                <p class="mb-0">La cita fue cancelada y no se puede reactivar.</p>
+            </div>
+        }
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <button class="btn btn-outline-secondary mb-2" @onclick="GoBack">
+                    ← Volver
+                </button>
+                <h2 class="@(cita.IsDeleted || cita.Estado == "cancelada" ? "text-muted text-decoration-line-through" : "")">🏥 Cita Médica</h2>
+                <p class="text-muted">Detalles completos de la cita</p>
+            </div>
+            <div>
+                @if (!IsOwner() && AuthService.CurrentUser?.Role == "veterinario")
+                {
+                    <div class="alert alert-info me-3" style="display: inline-block; margin-bottom: 0;">
+                        <small>ℹEsta cita está asignada a <strong>@cita.VeterinarioNombre</strong></small>
+                    </div>
+                }
+                @if (cita.Estado != "cancelada" && !cita.IsDeleted)
+                {
+                    @if (CanEditCita())
+                    {
+                        <button class="btn btn-warning me-2" @onclick="EditCita">
+                            Editar
+                        </button>
+                    }
+                    @if (CanCancelCita())
+                    {
+                        <button class="btn btn-danger" @onclick="CancelCita">
+                            Cancelar Cita
+                        </button>
+                    }
+                }
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Estado y Fecha -->
+            <div class="col-md-6 mb-4">
+                <div class="card border-@GetEstadoBorderColor()">
+                    <div class="card-header bg-@GetEstadoBackgroundColor() text-white">
+                        <h5 class="mb-0">Información de la Cita</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h6>Estado:</h6>
+                            <span class="badge bg-@GetEstadoBadgeColor() fs-5">@cita.Estado.ToUpper()</span>
+                        </div>
+
+                        <table class="table table-borderless">
+                            <tbody>
+                                <tr>
+                                    <th width="40%">Fecha y Hora:</th>
+                                    <td>
+                                        <strong>@cita.Fecha.ToString("dd/MM/yyyy")</strong><br />
+                                        <span class="text-muted">@cita.Fecha.ToString("HH:mm")</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Mascota:</th>
+                                    <td>
+                                        <strong>@cita.NombreMascota</strong>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Propietario Usuario:</th>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(cita.PropietarioUsername))
+                                        {
+                                            <strong>@cita.PropietarioUsername</strong>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Propietario Nombre:</th>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(cita.PropietarioNombre))
+                                        {
+                                            <strong>@cita.PropietarioNombre</strong>
+                                        }
+                                    </td>
+                                </tr>
+                                @if (!string.IsNullOrEmpty(cita.PropietarioTelefono))
+                                {
+                                    <tr>
+                                        <th>Teléfono:</th>
+                                        <td>@cita.PropietarioTelefono</td>
+                                    </tr>
+                                }
+                                @if (!string.IsNullOrEmpty(cita.Veterinario))
+                                {
+                                    <tr>
+                                        <th>Veterinario Username:</th>
+                                        <td>@cita.Veterinario</td>
+                                    </tr>
+                                }
+                                @if (!string.IsNullOrEmpty(cita.VeterinarioNombre))
+                                {
+                                    <tr>
+                                        <th>Veterinario Nombre:</th>
+                                        <td>@cita.VeterinarioNombre</td>
+                                    </tr>
+                                }
+                                @if (!string.IsNullOrEmpty(cita.VeterinarioTelefono))
+                                {
+                                    <tr>
+                                        <th>Veterinario Teléfono:</th>
+                                        <td>@cita.VeterinarioTelefono</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Motivo y Diagnóstico -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Detalles Médicos</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h6>Motivo de la Consulta:</h6>
+                            <p class="border rounded p-3 bg-light">
+                                @cita.Motivo
+                            </p>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(cita.Diagnostico))
+                        {
+                            <div class="mb-3">
+                                <h6>Diagnóstico:</h6>
+                                <p class="border rounded p-3 bg-light">
+                                    @cita.Diagnostico
+                                </p>
+                            </div>
+                        }
+                        else if (cita.Estado == "completada")
+                        {
+                            <div class="alert alert-warning">
+                                <strong>Atención:</strong> Esta cita está completada pero no tiene diagnóstico registrado.
+                            </div>
+                        }
+                        else if (cita.Estado == "pendiente" || cita.Estado == "confirmada")
+                        {
+                            <div class="alert alert-info">
+                                <strong>Información:</strong> El diagnóstico se agregará después de la consulta.
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(cita.Tratamiento))
+                        {
+                            <div class="mb-3">
+                                <h6>Tratamiento:</h6>
+                                <p class="border rounded p-3 bg-light">
+                                    @cita.Tratamiento
+                                </p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información Relacionada -->
+        <div class="row">
+            <!-- Receta -->
+            <div class="col-md-6 mb-4">
+                <div class="card shadow-sm border-start border-success border-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Receta Médica</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (isLoadingRelated)
+                        {
+                            <div class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm text-success" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                            </div>
+                        }
+                        else if (receta != null)
+                        {
+                            <div class="mb-3">
+                                <p class="mb-2"><strong>Fecha de emisión:</strong> @receta.FechaEmision.ToString("dd/MM/yyyy")</p>
+                                @if (!string.IsNullOrEmpty(receta.VeterinarioNombre))
+                                {
+                                    <p class="mb-2"><strong>Veterinario:</strong> @receta.VeterinarioNombre</p>
+                                }
+                                @if (!string.IsNullOrEmpty(receta.Indicaciones))
+                                {
+                                    <p class="mb-2"><strong>Indicaciones:</strong></p>
+                                    <div class="alert alert-light mb-2">
+                                        @receta.Indicaciones
+                                    </div>
+                                }
+                            </div>
+                            <div class="d-grid">
+                                <a href="/recetas/@receta.IdReceta" class="btn btn-success">
+                                    Ver Receta Completa →
+                                </a>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-light text-center mb-0">
+                                <p class="mb-2">No hay receta registrada para esta cita aún</p>
+                                @if (CanCreateReceta())
+                                {
+                                    <small class="text-muted">La receta se crea después de la consulta</small>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Factura -->
+            <div class="col-md-6 mb-4">
+                <div class="card shadow-sm border-start border-warning border-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">Factura</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (isLoadingRelated)
+                        {
+                            <div class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm text-warning" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                            </div>
+                        }
+                        else if (factura != null)
+                        {
+                            <div class="mb-3">
+                                <p class="mb-2"><strong>Número:</strong> @factura.NumeroFactura</p>
+                                <p class="mb-2"><strong>Fecha:</strong> @factura.FechaFactura.ToString("dd/MM/yyyy")</p>
+                                <p class="mb-2"><strong>Servicio:</strong> @factura.TipoServicio</p>
+                                <div class="alert alert-success mb-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <strong>Total:</strong>
+                                        <h4 class="mb-0 text-success">${@factura.Total.ToString("N0")}</h4>
+                                    </div>
+                                </div>
+                                <p class="mb-2">
+                                    <strong>Estado:</strong> 
+                                    <span class="badge @GetEstadoFacturaBadge(factura.Estado)">
+                                        @factura.Estado.ToUpper()
+                                    </span>
+                                </p>
+                            </div>
+                            <div class="d-grid">
+                                <a href="/facturas/@factura.IdFactura" class="btn btn-warning">
+                                    Ver Factura Completa →
+                                </a>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-light text-center mb-0">
+                                <p class="mb-2">No hay factura registrada para esta cita aún</p>
+                                <small class="text-muted">La factura se genera al finalizar la consulta</small>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Link a Mascota -->
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="card shadow-sm">
+                    <div class="card-body text-center">
+                        <h6 class="mb-3">Ver información completa de la mascota</h6>
+                        <a href="/mascotas/@cita.IdMascota" class="btn btn-primary">
+                            <i class="bi bi-arrow-right-circle"></i> Ir al Perfil de la Mascota
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private Cita? cita;
+    private Receta? receta;
+    private Factura? factura;
+    private bool isLoading = true;
+    private bool isLoadingRelated = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadCita();
+        await LoadRelatedData();
+    }
+
+    private async Task LoadCita()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            cita = await CitaService.GetCitaAsync(Id);
+            
+            if (cita == null)
+            {
+                errorMessage = "Cita no encontrada";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar la cita: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadRelatedData()
+    {
+        isLoadingRelated = true;
+        
+        try
+        {
+            // Cargar receta y factura en paralelo
+            var recetasTask = RecetaService.GetRecetasAsync(page: 1, pageSize: 100);
+            var facturasTask = FacturaService.GetFacturasAsync(page: 1, pageSize: 100);
+
+            await Task.WhenAll(recetasTask, facturasTask);
+
+            var recetasResponse = await recetasTask;
+            var facturasResponse = await facturasTask;
+
+            // Buscar la receta de esta cita
+            receta = recetasResponse?.Items?.FirstOrDefault(r => r.IdCita == Id);
+            
+            // Buscar la factura de esta cita
+            factura = facturasResponse?.Items?.FirstOrDefault(f => f.IdCita == Id);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al cargar datos relacionados: {ex.Message}");
+        }
+        finally
+        {
+            isLoadingRelated = false;
+        }
+    }
+
+    private string GetEstadoFacturaBadge(string estado)
+    {
+        return estado?.ToLower() switch
+        {
+            "pagada" => "bg-success",
+            "pendiente" => "bg-warning text-dark",
+            "cancelada" => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
+    private bool CanCreateReceta()
+    {
+        var role = AuthService.CurrentUser?.Role;
+        return role == "admin" || role == "veterinario";
+    }
+
+    private void EditCita()
+    {
+        Navigation.NavigateTo($"/citas/{Id}/editar");
+    }
+
+    private async Task CancelCita()
+    {
+        if (!CanCancelCita())
+        {
+            errorMessage = "No tienes permisos para cancelar esta cita.";
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "¿Estás seguro de que deseas cancelar esta cita?"))
+        {
+            return;
+        }
+
+        try
+        {
+            var success = await CitaService.CancelCitaAsync(Id);
+            if (success)
+            {
+                Navigation.NavigateTo("/citas");
+            }
+            else
+            {
+                errorMessage = "Error al cancelar la cita.";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cancelar: " + ex.Message;
+        }
+    }
+
+    private bool IsOwner()
+    {
+        if (cita == null) return false;
+        
+        var currentUsername = AuthService.CurrentUser?.Username;
+        return cita.Veterinario == currentUsername;
+    }
+
+    private bool CanEditCita()
+    {
+        if (cita == null) return false;
+        
+        var role = AuthService.CurrentUser?.Role;
+        
+        // No se pueden editar citas canceladas o completadas
+        if (cita.Estado == "cancelada" || cita.Estado == "completada")
+            return false;
+        
+        // Admin puede editar todas
+        if (role == "admin")
+            return true;
+        
+        // Veterinarios solo pueden editar las asignadas a ellos
+        if (role == "veterinario")
+            return IsOwner();
+        
+        // Clientes pueden editar sus propias citas pendientes
+        if (role == "cliente" && cita.Estado == "pendiente")
+            return true;
+        
+        return false;
+    }
+
+    private bool CanCancelCita()
+    {
+        if (cita == null) return false;
+        
+        // No se pueden cancelar citas ya canceladas o completadas
+        if (cita.Estado == "cancelada" || cita.Estado == "completada")
+            return false;
+        
+        var role = AuthService.CurrentUser?.Role;
+        
+        // Solo admin puede cancelar cualquier cita
+        if (role == "admin")
+            return true;
+        
+        // Veterinarios NO pueden cancelar citas
+        if (role == "veterinario")
+            return false;
+        
+        // Clientes pueden cancelar sus propias citas
+        if (role == "cliente")
+            return true;
+        
+        return false;
+    }
+
+    private string GetEstadoBadgeColor()
+    {
+        return cita?.Estado switch
+        {
+            "pendiente" => "warning",
+            "confirmada" => "primary",
+            "cancelada" => "danger",
+            "completada" => "success",
+            _ => "secondary"
+        };
+    }
+
+    private string GetEstadoBorderColor()
+    {
+        return cita?.Estado switch
+        {
+            "pendiente" => "warning",
+            "confirmada" => "primary",
+            "cancelada" => "danger",
+            "completada" => "success",
+            _ => "secondary"
+        };
+    }
+
+    private string GetEstadoBackgroundColor()
+    {
+        return cita?.Estado switch
+        {
+            "pendiente" => "warning",
+            "confirmada" => "primary",
+            "cancelada" => "danger",
+            "completada" => "success",
+            _ => "secondary"
+        };
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/citas");
+    }
+}

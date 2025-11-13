@@ -1,0 +1,440 @@
+@page "/vacunas"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject VacunaService VacunaService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<PageTitle>Vacunas - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a> para ver las vacunas</h3>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>💉 Control de Vacunas</h2>
+            @if (CanCreateVacuna())
+            {
+                <div>
+                    <button class="btn btn-primary" @onclick="NavigateToCreate">
+                        ➕ Registrar Vacuna
+                    </button>
+                </div>
+            }
+        </div>
+
+        <!-- Filtros de búsqueda -->
+        <div class="card mb-3">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Filtros de Búsqueda</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Buscar Mascota o Usuario</label>
+                        <input type="text" 
+                               class="form-control" 
+                               @bind="filtroMascota" 
+                               placeholder="Escribe nombre de mascota o propietario..." />
+                        <small class="text-muted">Busca por nombre de mascota o nombre del dueño</small>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Tipo de Vacuna</label>
+                        <select class="form-control" @bind="filtroTipoVacuna">
+                            <option value="">Todas</option>
+                            <option value="rabia">Rabia</option>
+                            <option value="parvovirus">Parvovirus</option>
+                            <option value="moquillo">Moquillo</option>
+                            <option value="triple_felina">Triple Felina</option>
+                            <option value="leucemia_felina">Leucemia Felina</option>
+                            <option value="newcastle">Newcastle</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5 d-flex align-items-end">
+                        <div class="w-100">
+                            @if (AuthService.CurrentUser?.Role == "admin")
+                            {
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" 
+                                           type="checkbox" 
+                                           id="includeDeleted"
+                                           @bind="includeDeleted" />
+                                    <label class="form-check-label" for="includeDeleted">
+                                        Mostrar eliminadas
+                                    </label>
+                                </div>
+                            }
+                            <div class="btn-group w-100">
+                                <button class="btn btn-primary" @onclick="ApplyFilters">
+                                    Aplicar Filtros
+                                </button>
+                                <button class="btn btn-secondary" @onclick="ClearFilters">
+                                    Limpiar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+                <p class="mt-2">Cargando vacunas...</p>
+            </div>
+        }
+        else if (errorMessage != null)
+        {
+            <div class="alert alert-danger" role="alert">
+                @errorMessage
+            </div>
+        }
+        else if (vacunas == null || !vacunas.Any())
+        {
+            <div class="text-center py-5">
+                <div class="empty-state">
+                    <h1 style="font-size: 5rem;">💉</h1>
+                    <h3>No hay vacunas registradas</h3>
+                    @if (CanCreateVacuna())
+                    {
+                        <p class="text-muted">¡Mantén el control de vacunación de tus mascotas!</p>
+                        <button class="btn btn-warning btn-lg mt-3" @onclick="NavigateToCreate">
+                            ➕ Registrar Mi Primera Vacuna
+                        </button>
+                    }
+                    else
+                    {
+                        <p class="text-muted">Aún no se han registrado vacunas para tus mascotas.</p>
+                        <p class="text-muted">El veterinario registrará las vacunas después de cada aplicación.</p>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="text-align: center; vertical-align: middle;">Estado</th>
+                            <th style="text-align: center; vertical-align: middle;">Mascota</th>
+                            <th style="text-align: center; vertical-align: middle;">Tipo de Vacuna</th>
+                            <th style="text-align: center; vertical-align: middle;">Lote</th>
+                            <th style="text-align: center; vertical-align: middle;">Fecha Aplicación</th>
+                            <th style="text-align: center; vertical-align: middle;">Próxima Dosis</th>
+                            <th style="text-align: center; vertical-align: middle;">Propietario</th>
+                            <th style="text-align: center; vertical-align: middle;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var vacuna in vacunas)
+                        {
+                            var proximaDosisText = "Sin próxima dosis";
+
+                            if (vacuna.ProximaDosis.HasValue)
+                            {
+                                var diasRestantes = (vacuna.ProximaDosis.Value - DateTime.Now).Days;
+                                proximaDosisText = vacuna.ProximaDosis.Value.ToString("dd/MM/yyyy");
+
+                                if (diasRestantes < 0)
+                                {
+                                    proximaDosisText += " Vencida";
+                                }
+                                else if (diasRestantes <= 7)
+                                {
+                                    proximaDosisText += $" En {diasRestantes} días";
+                                }
+                                else if (diasRestantes <= 30)
+                                {
+                                    proximaDosisText += $" ({diasRestantes} días)";
+                                }
+                            }
+
+                            var tipoVacunaBadgeClass = vacuna.TipoVacuna switch
+                            {
+                                "rabia" => "bg-danger",
+                                "parvovirus" => "bg-warning text-dark",
+                                "moquillo" => "bg-info",
+                                "leucemia_felina" => "bg-primary",
+                                "triple_felina" => "bg-success",
+                                "newcastle" => "bg-secondary",
+                                _ => "bg-secondary"
+                            };
+                            
+                            var tipoVacunaDisplay = vacuna.TipoVacuna.Replace("_", " ").ToUpper();
+                            var rowClass = vacuna.IsDeleted ? "table-danger" : "";
+                            var textClass = vacuna.IsDeleted ? "text-decoration-line-through text-muted" : "";
+
+                            <tr class="@rowClass">
+                                <td style="text-align: center; vertical-align: middle;">
+                                    @if (vacuna.IsDeleted)
+                                    {
+                                        <span class="badge bg-danger">Eliminada</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">Activa</span>
+                                    }
+                                </td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    <strong class="@textClass">@vacuna.MascotaNombre</strong>
+                                </td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    <span class="badge @tipoVacunaBadgeClass" style="color: black;font-family: arial; ">@tipoVacunaDisplay</span>
+                                </td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    <code class="text-muted">@vacuna.LoteVacuna</code>
+                                </td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    @vacuna.FechaAplicacion.ToString("dd/MM/yyyy")
+                                </td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    @proximaDosisText
+                                </td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    <small>
+                                        @if (!string.IsNullOrEmpty(vacuna.PropietarioNombre))
+                                        {
+                                            <span>@vacuna.PropietarioNombre</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@vacuna.PropietarioUsername</span>
+                                        }
+                                    </small>
+                                </td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewVacuna(vacuna.IdVacuna)">
+                                            Ver
+                                        </button>
+                                        @if (CanEdit())
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteVacuna(vacuna.IdVacuna)">
+                                                Eliminar
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (paginatedResponse != null && paginatedResponse.TotalPages > 1)
+            {
+                <nav aria-label="Paginación">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => LoadVacunas(currentPage - 1)">Anterior</button>
+                        </li>
+                        @for (int i = 1; i <= paginatedResponse.TotalPages; i++)
+                        {
+                            var pageNum = i;
+                            <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                                <button class="page-link" @onclick="() => LoadVacunas(pageNum)">@pageNum</button>
+                            </li>
+                        }
+                        <li class="page-item @(currentPage == paginatedResponse.TotalPages ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => LoadVacunas(currentPage + 1)">Siguiente</button>
+                        </li>
+                    </ul>
+                </nav>
+            }
+        }
+    </div>
+}
+
+@code {
+    private List<Vacuna>? vacunas;
+    private PaginatedResponse<Vacuna>? paginatedResponse;
+    private int currentPage = 1;
+    private bool isLoading;
+    private string? errorMessage;
+
+    // Filtros
+    private string filtroTipoVacuna = "";
+    private string filtroMascota = "";
+    private bool includeDeleted = false;
+    private bool hasActiveFilters = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Suscribirse a cambios de autenticación
+        AuthService.OnAuthStateChanged += HandleAuthStateChanged;
+        
+        // Cargar si ya está autenticado
+        if (AuthService.IsAuthenticated)
+        {
+            await LoadVacunas(1);
+        }
+    }
+
+    private async void HandleAuthStateChanged()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadVacunas(1);
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        AuthService.OnAuthStateChanged -= HandleAuthStateChanged;
+    }
+
+    private async Task LoadVacunas(int page = 1)
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            currentPage = page;
+            
+            // Apply filters
+            var tipoVacunaFilter = string.IsNullOrWhiteSpace(filtroTipoVacuna) ? null : filtroTipoVacuna;
+            var mascotaFilter = string.IsNullOrWhiteSpace(filtroMascota) ? null : filtroMascota;
+            
+            paginatedResponse = await VacunaService.GetVacunasAsync(
+                page: currentPage,
+                pageSize: 10,
+                tipoVacuna: tipoVacunaFilter,
+                veterinario: null,
+                mascotaNombre: mascotaFilter,
+                includeDeleted: includeDeleted
+            );
+
+            vacunas = paginatedResponse?.Items ?? new List<Vacuna>();
+            
+            // Check if we have active filters
+            hasActiveFilters = !string.IsNullOrWhiteSpace(filtroTipoVacuna) ||
+                              !string.IsNullOrWhiteSpace(filtroMascota) ||
+                              includeDeleted;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Token expirado - redirigir al login
+            await AuthService.LogoutAsync();
+            Navigation.NavigateTo("/login", true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar vacunas: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ApplyFilters()
+    {
+        // Reset to page 1 when applying filters
+        await LoadVacunas(1);
+    }
+
+    private async Task ClearFilters()
+    {
+        filtroTipoVacuna = "";
+        filtroMascota = "";
+        includeDeleted = false;
+        hasActiveFilters = false;
+        await LoadVacunas(1);
+    }
+
+    private void ViewVacuna(string id)
+    {
+        Navigation.NavigateTo($"/vacunas/{id}");
+    }
+
+    private async Task DeleteVacuna(string id)
+    {
+        if (!CanDeleteVacuna())
+        {
+            errorMessage = "No tienes permisos para eliminar vacunas.";
+            return;
+        }
+
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "¿Estás seguro de que deseas eliminar esta vacuna?"))
+        {
+            return;
+        }
+
+        try
+        {
+            if (await VacunaService.DeleteVacunaAsync(id))
+            {
+                await LoadVacunas(currentPage);
+            }
+            else
+            {
+                errorMessage = "Error al eliminar la vacuna.";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // Token expirado o sin permisos
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al eliminar: " + ex.Message;
+        }
+    }
+
+    private bool CanCreateVacuna()
+    {
+        var role = AuthService.CurrentUser?.Role;
+        
+        // Solo admin y veterinarios pueden crear vacunas
+        return role == "admin" || role == "veterinario";
+    }
+
+    private bool CanDeleteVacuna()
+    {
+        var role = AuthService.CurrentUser?.Role;
+        
+        // Solo admin puede eliminar vacunas
+        return role == "admin";
+    }
+
+    private bool CanEdit()
+    {
+        // Admin puede editar cualquier cosa
+        if (AuthService.CurrentUser?.Role == "admin")
+            return true;
+        
+        // Clientes no pueden editar vacunas
+        return false;
+    }
+
+    private void NavigateToCreate()
+    {
+        Navigation.NavigateTo("/vacunas/crear");
+    }
+}

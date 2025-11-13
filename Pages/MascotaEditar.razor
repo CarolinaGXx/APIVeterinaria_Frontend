@@ -1,0 +1,267 @@
+@page "/mascotas/{id}/editar"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject MascotaService MascotaService
+@inject NavigationManager Navigation
+
+<PageTitle>Editar Mascota - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a> para editar mascotas</h3>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow">
+                    <div class="card-header bg-warning text-dark">
+                        <h4 class="mb-0">Editar Mascota</h4>
+                    </div>
+                    <div class="card-body">
+                        @if (isLoadingMascota)
+                        {
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                                <p class="mt-2">Cargando información...</p>
+                            </div>
+                        }
+                        else if (errorMessage != null)
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                <strong>Error:</strong> @errorMessage
+                            </div>
+                        }
+                        else if (mascotaUpdate == null)
+                        {
+                            <div class="alert alert-warning">
+                                Mascota no encontrada.
+                            </div>
+                            <button class="btn btn-secondary" @onclick="Cancel">Volver</button>
+                        }
+                        else
+                        {
+                            <EditForm Model="@mascotaUpdate" OnValidSubmit="HandleSubmit">
+                                <div class="mb-3">
+                                    <label class="form-label">Nombre de la Mascota *</label>
+                                    <InputText @bind-Value="mascotaUpdate.Nombre" class="form-control" 
+                                               placeholder="Ej: Firulais" />
+                                    <small class="text-muted">Nombre por el que se conoce a la mascota</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Tipo *</label>
+                                    <InputSelect @bind-Value="mascotaUpdate.Tipo" class="form-select">
+                                        <option value="">Selecciona...</option>
+                                        <option value="perro">🐶 Perro</option>
+                                        <option value="gato">🐱 Gato</option>
+                                        <option value="ave">🐦 Ave</option>
+                                    </InputSelect>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Raza</label>
+                                    <InputText @bind-Value="mascotaUpdate.Raza" class="form-control" 
+                                               placeholder="Ej: Labrador, Persa, etc." />
+                                    <small class="text-muted">Opcional</small>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Edad (años)</label>
+                                        <InputNumber @bind-Value="mascotaUpdate.Edad" class="form-control" 
+                                                     min="0" max="50" />
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Peso (kg)</label>
+                                        <InputNumber @bind-Value="mascotaUpdate.Peso" class="form-control" 
+                                                     step="0.1" min="0" max="500" />
+                                    </div>
+                                </div>
+
+                                <div class="alert alert-info">
+                                    <strong>Nota:</strong> Los campos marcados con * son obligatorios.
+                                </div>
+
+                                <div class="d-flex justify-content-between">
+                                    <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@isLoading">
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" class="btn btn-warning" disabled="@isLoading">
+                                        @if (isLoading)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                            <span>Actualizando...</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Actualizar Mascota</span>
+                                        }
+                                    </button>
+                                </div>
+                            </EditForm>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private MascotaUpdate mascotaUpdate = new();
+    private Mascota? mascotaOriginal;
+    private string? errorMessage;
+    private bool isLoading;
+    private bool isLoadingMascota = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadMascota();
+    }
+
+    private async Task LoadMascota()
+    {
+        isLoadingMascota = true;
+        errorMessage = null;
+
+        try
+        {
+            mascotaOriginal = await MascotaService.GetMascotaAsync(Id);
+
+            if (mascotaOriginal != null)
+            {
+                // Verificar permisos
+                if (!CanEditMascota(mascotaOriginal))
+                {
+                    errorMessage = "No tienes permisos para editar esta mascota.";
+                    return;
+                }
+
+                // Pre-llenar el formulario con los datos actuales
+                mascotaUpdate = new MascotaUpdate
+                {
+                    Nombre = mascotaOriginal.Nombre,
+                    Tipo = mascotaOriginal.Tipo,
+                    Raza = mascotaOriginal.Raza,
+                    Edad = mascotaOriginal.Edad,
+                    Peso = mascotaOriginal.Peso
+                };
+            }
+            else
+            {
+                errorMessage = "Mascota no encontrada.";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar la mascota: " + ex.Message;
+        }
+        finally
+        {
+            isLoadingMascota = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            // Validaciones
+            if (string.IsNullOrWhiteSpace(mascotaUpdate.Nombre))
+            {
+                errorMessage = "El nombre de la mascota es requerido";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(mascotaUpdate.Tipo))
+            {
+                errorMessage = "El tipo de mascota es requerido";
+                return;
+            }
+
+            var result = await MascotaService.UpdateMascotaAsync(Id, mascotaUpdate);
+
+            if (result != null)
+            {
+                Navigation.NavigateTo($"/mascotas/{Id}");
+            }
+            else
+            {
+                errorMessage = "Error al actualizar la mascota";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool CanEditMascota(Mascota mascota)
+    {
+        var role = AuthService.CurrentUser?.Role;
+        var username = AuthService.CurrentUser?.Username;
+        
+        // Admin y veterinarios pueden editar todas
+        if (role == "admin" || role == "veterinario")
+            return true;
+        
+        // Clientes solo pueden editar sus propias mascotas
+        if (role == "cliente" && mascota.Propietario == username)
+            return true;
+        
+        return false;
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo($"/mascotas/{Id}");
+    }
+}

@@ -1,0 +1,278 @@
+@page "/vacunas/{id}/editar"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject VacunaService VacunaService
+@inject MascotaService MascotaService
+@inject NavigationManager Navigation
+
+<PageTitle>Editar Vacuna - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a> para editar vacunas</h3>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow">
+                    <div class="card-header bg-warning text-dark">
+                        <h4 class="mb-0">Editar Registro de Vacunación</h4>
+                    </div>
+                    <div class="card-body">
+                        @if (isLoadingVacuna)
+                        {
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                                <p class="mt-2">Cargando información...</p>
+                            </div>
+                        }
+                        else if (errorMessage != null)
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                <strong>Error:</strong> @errorMessage
+                            </div>
+                        }
+                        else if (vacunaUpdate == null)
+                        {
+                            <div class="alert alert-warning">
+                                Vacuna no encontrada.
+                            </div>
+                            <button class="btn btn-secondary" @onclick="Cancel">Volver</button>
+                        }
+                        else
+                        {
+                            <EditForm Model="@vacunaUpdate" OnValidSubmit="HandleSubmit">
+                                <div class="mb-3">
+                                    <label class="form-label">Tipo de Vacuna *</label>
+                                    <InputSelect @bind-Value="vacunaUpdate.TipoVacuna" class="form-select">
+                                        <option value="">Selecciona...</option>
+                                        <option value="rabia">🦠 Rabia</option>
+                                        <option value="parvovirus">🦠 Parvovirus</option>
+                                        <option value="moquillo">🦠 Moquillo</option>
+                                        <option value="leucemia_felina">🐱 Leucemia Felina</option>
+                                        <option value="triple_felina">🐱 Triple Felina</option>
+                                        <option value="newcastle">🐦 Newcastle</option>
+                                    </InputSelect>
+                                    <small class="text-muted">Selecciona el tipo específico de vacuna</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Lote de la Vacuna *</label>
+                                    <InputText @bind-Value="vacunaUpdate.LoteVacuna" class="form-control" 
+                                               placeholder="Ej: LOT-2024-001" 
+                                               maxlength="20" />
+                                    <small class="text-muted">Número de lote impreso en el frasco</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Fecha de Aplicación *</label>
+                                    <InputDate @bind-Value="fechaAplicacion" class="form-control" />
+                                    <small class="text-muted">Fecha en que se aplicó la vacuna</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Próxima Dosis (opcional)</label>
+                                    <InputDate @bind-Value="proximaDosis" class="form-control" />
+                                    <small class="text-muted">Fecha estimada para el refuerzo (deja vacío si no aplica)</small>
+                                </div>
+
+                                <div class="alert alert-info">
+                                    <strong>Nota:</strong> Los campos marcados con * son obligatorios.
+                                </div>
+
+                                <div class="alert alert-warning">
+                                    <strong>Importante:</strong> Solo modifica estos datos si es necesario corregir información incorrecta.
+                                </div>
+
+                                <div class="d-flex justify-content-between">
+                                    <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@isLoading">
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" class="btn btn-warning" disabled="@isLoading">
+                                        @if (isLoading)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                            <span>Actualizando...</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Actualizar Vacuna</span>
+                                        }
+                                    </button>
+                                </div>
+                            </EditForm>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private VacunaUpdate vacunaUpdate = new();
+    private Vacuna? vacunaOriginal;
+    private DateTime? fechaAplicacion;
+    private DateTime? proximaDosis;
+    private string? errorMessage;
+    private bool isLoading;
+    private bool isLoadingVacuna = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        // Verificar permisos
+        var role = AuthService.CurrentUser?.Role;
+        if (role != "admin" && role != "veterinario")
+        {
+            errorMessage = "No tienes permisos para editar vacunas.";
+            isLoadingVacuna = false;
+            return;
+        }
+
+        await LoadVacuna();
+    }
+
+    private async Task LoadVacuna()
+    {
+        isLoadingVacuna = true;
+        errorMessage = null;
+
+        try
+        {
+            vacunaOriginal = await VacunaService.GetVacunaAsync(Id);
+
+            if (vacunaOriginal != null)
+            {
+                // Pre-llenar el formulario con los datos actuales
+                vacunaUpdate = new VacunaUpdate
+                {
+                    TipoVacuna = vacunaOriginal.TipoVacuna,
+                    LoteVacuna = vacunaOriginal.LoteVacuna,
+                    FechaAplicacion = vacunaOriginal.FechaAplicacion,
+                    ProximaDosis = vacunaOriginal.ProximaDosis
+                };
+
+                fechaAplicacion = vacunaOriginal.FechaAplicacion;
+                proximaDosis = vacunaOriginal.ProximaDosis;
+            }
+            else
+            {
+                errorMessage = "Vacuna no encontrada.";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar la vacuna: " + ex.Message;
+        }
+        finally
+        {
+            isLoadingVacuna = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            // Validaciones
+            if (string.IsNullOrWhiteSpace(vacunaUpdate.TipoVacuna))
+            {
+                errorMessage = "El tipo de vacuna es requerido";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(vacunaUpdate.LoteVacuna))
+            {
+                errorMessage = "El lote de la vacuna es requerido";
+                return;
+            }
+
+            if (!fechaAplicacion.HasValue)
+            {
+                errorMessage = "La fecha de aplicación es requerida";
+                return;
+            }
+
+            // Validar que la próxima dosis sea posterior a la fecha de aplicación
+            if (proximaDosis.HasValue && fechaAplicacion.HasValue)
+            {
+                if (proximaDosis.Value <= fechaAplicacion.Value)
+                {
+                    errorMessage = "La próxima dosis debe ser posterior a la fecha de aplicación";
+                    return;
+                }
+            }
+
+            // Actualizar valores desde los campos del formulario
+            vacunaUpdate.FechaAplicacion = fechaAplicacion;
+            vacunaUpdate.ProximaDosis = proximaDosis;
+
+            var result = await VacunaService.UpdateVacunaAsync(Id, vacunaUpdate);
+
+            if (result != null)
+            {
+                Navigation.NavigateTo($"/vacunas/{Id}");
+            }
+            else
+            {
+                errorMessage = "Error al actualizar la vacuna";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            if (ex.Message.Contains("expirado"))
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                errorMessage = ex.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo($"/vacunas/{Id}");
+    }
+}

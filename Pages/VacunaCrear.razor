@@ -1,0 +1,304 @@
+@page "/vacunas/crear"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject VacunaService VacunaService
+@inject MascotaService MascotaService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>Nueva Vacuna - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a></h3>
+    </div>
+}
+else if (!CanCreateVacuna())
+{
+    <div class="container">
+        <div class="alert alert-warning mt-5">
+            <h4>Acceso No Autorizado</h4>
+            <p>Solo los veterinarios y administradores pueden registrar vacunas.</p>
+            <p class="mb-0">Si tu mascota necesita una vacuna, agenda una <a href="/citas/crear">cita veterinaria</a>.</p>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-primary mt-3" @onclick="GoBack">← Volver a Vacunas</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h4 class="mb-0">💉 Registrar Vacuna</h4>
+                    </div>
+                    <div class="card-body">
+                        @if (true)
+                        {
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="alert alert-danger" role="alert">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            <EditForm Model="@vacuna" OnValidSubmit="HandleSubmit">
+                                <div class="mb-3">
+                                    <label class="form-label">Buscar Mascota *</label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           value="@searchTerm"
+                                           @oninput="OnSearchInputChanged"
+                                           placeholder="Escribe para buscar mascota o propietario..." />
+                                    <small class="text-muted">
+                                        @if (isSearching)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                            <span>Buscando...</span>
+                                        }
+                                        else if (!string.IsNullOrEmpty(searchTerm) && mascotas.Any())
+                                        {
+                                            <span>✅ Encontradas @mascotas.Count mascota(s)</span>
+                                        }
+                                        else if (!string.IsNullOrEmpty(searchTerm) && !mascotas.Any())
+                                        {
+                                            <span>❌ No se encontraron mascotas</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Escribe al menos 1 carácter para buscar</span>
+                                        }
+                                    </small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Seleccionar Mascota *</label>
+                                    @if (mascotas.Any())
+                                    {
+                                        <InputSelect @bind-Value="vacuna.IdMascota" class="form-select" size="8">
+                                            <option value="">-- Selecciona de los resultados --</option>
+                                            @foreach (var mascota in mascotas)
+                                            {
+                                                <option value="@mascota.IdMascota">
+                                                    🐾 @mascota.Nombre (@mascota.Tipo - @mascota.Raza) - Dueño: @mascota.Propietario
+                                                </option>
+                                            }
+                                        </InputSelect>
+                                    }
+                                    else
+                                    {
+                                        <select class="form-select" disabled size="8">
+                                            <option>Usa el buscador arriba para encontrar mascotas...</option>
+                                        </select>
+                                    }
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Tipo de Vacuna *</label>
+                                    <InputSelect @bind-Value="vacuna.TipoVacuna" class="form-select">
+                                        <option value="">Selecciona...</option>
+                                        <option value="rabia">🦠 Rabia</option>
+                                        <option value="parvovirus">🦠 Parvovirus</option>
+                                        <option value="moquillo">🦠 Moquillo</option>
+                                        <option value="leucemia_felina">🐱 Leucemia Felina</option>
+                                        <option value="triple_felina">🐱 Triple Felina</option>
+                                        <option value="newcastle">🐦 Newcastle</option>
+                                    </InputSelect>
+                                    <small class="text-muted">Selecciona el tipo específico de vacuna</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Lote de la Vacuna *</label>
+                                    <InputText @bind-Value="vacuna.LoteVacuna" class="form-control" 
+                                               placeholder="Ej: LOT-2024-001" 
+                                               maxlength="20" />
+                                    <small class="text-muted">Número de lote impreso en el frasco</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Próxima Dosis (opcional)</label>
+                                    <InputDate @bind-Value="proximaDosis" class="form-control" />
+                                    <small class="text-muted">Fecha estimada para el refuerzo (deja vacío si no aplica)</small>
+                                </div>
+
+                                <div class="alert alert-info">
+                                    <strong>Información:</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>Algunas vacunas requieren refuerzos anuales</li>
+                                        <li>Te notificaremos cuando se acerque la próxima dosis</li>
+                                    </ul>
+                                </div>
+
+                                <div class="d-flex justify-content-between">
+                                    <button type="button" class="btn btn-secondary" @onclick="Cancel">
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" class="btn btn-warning" disabled="@isLoading">
+                                        @if (isLoading)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                            <span>Guardando...</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Registrar Vacuna</span>
+                                        }
+                                    </button>
+                                </div>
+                            </EditForm>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Mascota> mascotas = new();
+    private VacunaCreate vacuna = new();
+    private DateTime? proximaDosis = null;
+    private string? errorMessage;
+    private bool isLoading;
+    private bool isSearching;
+    private string searchTerm = "";
+    private System.Threading.Timer? _searchTimer;
+
+    protected override Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    private void OnSearchInputChanged(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? "";
+        
+        // Cancel previous timer
+        _searchTimer?.Dispose();
+        
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            mascotas.Clear();
+            StateHasChanged();
+            return;
+        }
+
+        // Debounce: wait 300ms after user stops typing
+        _searchTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await SearchMascotas();
+            });
+        }, null, 300, Timeout.Infinite);
+    }
+
+    private async Task SearchMascotas()
+    {
+        isSearching = true;
+        StateHasChanged();
+
+        try
+        {
+            var results = await MascotaService.SearchMascotasAsync(
+                searchTerm: searchTerm,
+                limit: 30,  // Limit results for better UX
+                includeDeleted: false
+            );
+            
+            mascotas = results ?? new List<Mascota>();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al buscar mascotas: {ex.Message}";
+            mascotas.Clear();
+        }
+        finally
+        {
+            isSearching = false;
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        _searchTimer?.Dispose();
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(vacuna.IdMascota))
+            {
+                errorMessage = "Debes seleccionar una mascota";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(vacuna.TipoVacuna))
+            {
+                errorMessage = "El tipo de vacuna es requerido";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(vacuna.LoteVacuna))
+            {
+                errorMessage = "El lote de la vacuna es requerido";
+                return;
+            }
+
+            // Fecha de aplicación es auto-generada por el backend (hoy)
+            vacuna.ProximaDosis = proximaDosis;
+
+            var result = await VacunaService.CreateVacunaAsync(vacuna);
+
+            if (result != null)
+            {
+                Navigation.NavigateTo("/vacunas");
+            }
+            else
+            {
+                errorMessage = "Error al registrar la vacuna";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool CanCreateVacuna()
+    {
+        var role = AuthService.CurrentUser?.Role;
+        
+        // Solo admin y veterinarios pueden crear vacunas
+        return role == "admin" || role == "veterinario";
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/vacunas");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/vacunas");
+    }
+}

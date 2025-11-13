@@ -1,0 +1,308 @@
+@page "/usuarios"
+@using VeterinariaApp.Services
+@using VeterinariaApp.Models
+@inject AuthService AuthService
+@inject UsuarioService UsuarioService
+@inject NavigationManager Navigation
+
+<PageTitle>Usuarios - Sistema Veterinario</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <div class="text-center py-5">
+        <h3>Debes <a href="/login">iniciar sesión</a></h3>
+    </div>
+}
+else if (!IsAdmin())
+{
+    <div class="container">
+        <div class="alert alert-warning mt-5">
+            <h4>Acceso No Autorizado</h4>
+            <p>Solo los administradores pueden acceder a la gestión de usuarios.</p>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-primary mt-3" @onclick="GoHome">← Volver al Inicio</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>👥 Gestión de Usuarios</h2>
+                <p class="text-muted">Administración de usuarios del sistema</p>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Filtrar por Rol:</label>
+                        <select class="form-select" @onchange="OnRoleFilterChanged">
+                            <option value="">Todos los roles</option>
+                            <option value="admin">Administradores</option>
+                            <option value="veterinario">Veterinarios</option>
+                            <option value="cliente">Clientes</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="includeDeleted" @onchange="OnIncludeDeletedChanged">
+                            <label class="form-check-label" for="includeDeleted">
+                                Mostrar usuarios eliminados
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @errorMessage
+                <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+            </div>
+        }
+
+        @if (isLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+                <p class="mt-3">Cargando usuarios...</p>
+            </div>
+        }
+        else if (usuarios == null || !usuarios.Any())
+        {
+            <div class="alert alert-info">
+                <h5>No hay usuarios para mostrar</h5>
+                <p class="mb-0">No se encontraron usuarios con los filtros seleccionados.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 12%; text-align: center;">Usuario</th>
+                            <th style="width: 18%; text-align: center;">Nombre</th>
+                            <th style="width: 8%; text-align: center;">Edad</th>
+                            <th style="width: 12%; text-align: center;">Teléfono</th>
+                            <th style="width: 12%; text-align: center;">Rol</th>
+                            <th style="width: 12%; text-align: center;">Fecha Creación</th>
+                            <th style="width: 10%; text-align: center;">Estado</th>
+                            <th style="width: 16%; text-align: center;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in usuarios)
+                        {
+                            <tr class="@(user.IsDeleted ? "table-danger opacity-50" : "")">
+                                <td style="text-align: center; vertical-align: middle;">
+                                    <strong>@user.Username</strong>
+                                    @if (user.Username == AuthService.CurrentUser?.Username)
+                                    {
+                                        <span> (Tú)</span>
+                                    }
+                                </td>
+                                <td style="text-align: center; vertical-align: middle;">@user.Nombre</td>
+                                <td style="text-align: center; vertical-align: middle;">@user.Edad años</td>
+                                <td style="text-align: center; vertical-align: middle;">@user.Telefono</td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    <span class="badge @GetRoleBadgeClass(user.Role)">
+                                        @GetRoleDisplay(user.Role)
+                                    </span>
+                                </td>
+                                <td style="text-align: center; vertical-align: middle;">@user.FechaCreacion.ToString("dd/MM/yyyy")</td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    @if (user.IsDeleted)
+                                    {
+                                        <span class="badge bg-danger">Desactivado</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">Activo</span>
+                                    }
+                                </td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewUserDetails(user.IdUsuario)">
+                                        Ver usuario
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (paginatedResponse != null && paginatedResponse.TotalPages > 1)
+            {
+                <nav aria-label="Paginación">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => LoadUsuarios(currentPage - 1)">Anterior</button>
+                        </li>
+                        @for (int i = 1; i <= paginatedResponse.TotalPages; i++)
+                        {
+                            var pageNum = i;
+                            <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                                <button class="page-link" @onclick="() => LoadUsuarios(pageNum)">@pageNum</button>
+                            </li>
+                        }
+                        <li class="page-item @(currentPage == paginatedResponse.TotalPages ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => LoadUsuarios(currentPage + 1)">Siguiente</button>
+                        </li>
+                    </ul>
+                </nav>
+            }
+
+            <!-- Estadísticas -->
+            <div class="row mt-4">
+                <div class="col-md-3">
+                    <div class="card text-center border-primary">
+                        <div class="card-body">
+                            <h5 class="card-title">Total Usuarios</h5>
+                            <h2 class="text-primary">@(paginatedResponse?.Total ?? 0)</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center border-danger">
+                        <div class="card-body">
+                            <h5 class="card-title">Administradores</h5>
+                            <h2 class="text-danger">@usuarios.Count(u => u.Role == "admin")</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center border-success">
+                        <div class="card-body">
+                            <h5 class="card-title">Veterinarios</h5>
+                            <h2 class="text-success">@usuarios.Count(u => u.Role == "veterinario")</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center border-info">
+                        <div class="card-body">
+                            <h5 class="card-title">Clientes</h5>
+                            <h2 class="text-info">@usuarios.Count(u => u.Role == "cliente")</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Usuario> usuarios = new();
+    private PaginatedResponse<Usuario>? paginatedResponse;
+    private int currentPage = 1;
+    private string? roleFilter = null;
+    private bool includeDeleted = false;
+    private string? errorMessage;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        if (!IsAdmin())
+        {
+            return;
+        }
+
+        await LoadUsuarios();
+    }
+
+    private async Task LoadUsuarios(int page = 1)
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            currentPage = page;
+            paginatedResponse = await UsuarioService.GetUsuariosAsync(
+                page: currentPage,
+                pageSize: 15,
+                role: roleFilter,
+                includeDeleted: includeDeleted
+            );
+
+            usuarios = paginatedResponse?.Items ?? new List<Usuario>();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Console.WriteLine($"Sesión expirada: {ex.Message}");
+            await AuthService.LogoutAsync();
+            Navigation.NavigateTo("/login", true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al cargar usuarios: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnRoleFilterChanged(ChangeEventArgs e)
+    {
+        roleFilter = string.IsNullOrEmpty(e.Value?.ToString()) ? null : e.Value.ToString();
+        await LoadUsuarios();
+    }
+
+    private async Task OnIncludeDeletedChanged(ChangeEventArgs e)
+    {
+        includeDeleted = e.Value?.ToString() == "True";
+        await LoadUsuarios();
+    }
+
+    private bool IsAdmin()
+    {
+        return AuthService.CurrentUser?.Role == "admin";
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private string GetRoleDisplay(string role)
+    {
+        return role switch
+        {
+            "admin" => "👑 Admin",
+            "veterinario" => "Veterinario",
+            "cliente" => "Cliente",
+            _ => role
+        };
+    }
+
+    private string GetRoleBadgeClass(string role)
+    {
+        return role switch
+        {
+            "admin" => "bg-danger",
+            "veterinario" => "bg-success",
+            "cliente" => "bg-primary",
+            _ => "bg-secondary"
+        };
+    }
+
+    private void ViewUserDetails(string userId)
+    {
+        Navigation.NavigateTo($"/usuarios/{userId}");
+    }
+}
