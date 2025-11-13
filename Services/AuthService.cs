@@ -62,10 +62,9 @@ public class AuthService
 
             if (response != null)
             {
-                Console.WriteLine($"🔑 Login exitoso. Token recibido del backend:");
+                Console.WriteLine($"   Login exitoso. Token recibido del backend:");
                 Console.WriteLine($"   Longitud: {response.AccessToken.Length}");
                 Console.WriteLine($"   Primeros 50 chars: {response.AccessToken.Substring(0, Math.Min(50, response.AccessToken.Length))}");
-                Console.WriteLine($"   Contiene puntos (JWT): {response.AccessToken.Count(c => c == '.')}");
                 
                 await _localStorage.SetItemAsync(TokenKey, response.AccessToken);
                 await _localStorage.SetItemAsync(UserKey, response.Usuario);

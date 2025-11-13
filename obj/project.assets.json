@@ -1803,11 +1803,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\santi\\Downloads\\APIVeterinaria_Parcial1-main\\Frontend\\VeterinariaApp.csproj",
+      "projectUniqueName": "C:\\Users\\santi\\Downloads\\veterinaria frontend\\apiveterinaria_frontend\\VeterinariaApp.csproj",
       "projectName": "VeterinariaApp",
-      "projectPath": "C:\\Users\\santi\\Downloads\\APIVeterinaria_Parcial1-main\\Frontend\\VeterinariaApp.csproj",
+      "projectPath": "C:\\Users\\santi\\Downloads\\veterinaria frontend\\apiveterinaria_frontend\\VeterinariaApp.csproj",
       "packagesPath": "C:\\Users\\santi\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\santi\\Downloads\\APIVeterinaria_Parcial1-main\\Frontend\\obj\\",
+      "outputPath": "C:\\Users\\santi\\Downloads\\veterinaria frontend\\apiveterinaria_frontend\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\santi\\AppData\\Roaming\\NuGet\\NuGet.Config"

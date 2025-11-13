@@ -27,7 +27,7 @@ public class ApiService
                 BaseAddress = new Uri(baseUrl),
                 Timeout = TimeSpan.FromSeconds(configuration.GetValue<int>("ApiConfiguration:Timeout", 30))
             };
-            Console.WriteLine($"✅ API configurada: {baseUrl}");
+            Console.WriteLine($"API configurada: {baseUrl}");
         }
         
         _jsonOptions = new JsonSerializerOptions
@@ -47,9 +47,9 @@ public class ApiService
     public void SetAuthToken(string token)
     {
         _authToken = token;  // Guardar en estático
-        _sharedHttpClient!.DefaultRequestHeaders.Authorization = 
+        _sharedHttpClient!.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", token);
-        Console.WriteLine($"✅ Token configurado: {token.Substring(0, Math.Min(20, token.Length))}...");
+        Console.WriteLine($"Token configurado: {token}");
     }
 
     public void ClearAuthToken()

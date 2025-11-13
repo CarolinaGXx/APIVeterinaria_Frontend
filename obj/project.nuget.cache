@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "rZ+vda8NO7I=",
+  "dgSpecHash": "lF7C+bytsR8=",
   "success": true,
-  "projectFilePath": "C:\\Users\\santi\\Downloads\\APIVeterinaria_Parcial1-main\\frontend\\VeterinariaApp.csproj",
+  "projectFilePath": "C:\\Users\\santi\\Downloads\\veterinaria frontend\\apiveterinaria_frontend\\VeterinariaApp.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\santi\\.nuget\\packages\\blazored.localstorage\\4.5.0\\blazored.localstorage.4.5.0.nupkg.sha512",
     "C:\\Users\\santi\\.nuget\\packages\\microsoft.aspnetcore.authorization\\9.0.6\\microsoft.aspnetcore.authorization.9.0.6.nupkg.sha512",
